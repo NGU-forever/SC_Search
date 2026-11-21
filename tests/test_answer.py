@@ -167,6 +167,20 @@ def _seed(db_path: Path) -> None:
         game_version="4.10.3",
         qty=1.0,
     )
+    for mat_name, qty in (("Aluminum", 0.06), ("Hephaestanite", 0.02), ("Iron", 0.01)):
+        mid = upsert_entity(
+            conn, kind="commodity", canonical_name=mat_name, game_version="4.10.3"
+        )
+        insert_relation(
+            conn,
+            from_id=cq7,
+            to_id=mid,
+            rel_type="blueprint_requires",
+            source="scw_blueprint",
+            game_version="scw-blueprint-live",
+            qty=qty,
+            meta_json='{"unit":"SCU","ingredient_kind":"resource"}',
+        )
     skin = upsert_entity(
         conn, kind="item", canonical_name='CQ7 "Blacklist" Rifle', game_version="4.10.3"
     )
@@ -293,7 +307,7 @@ def test_blueprint_what_is_no_acquisition_early_return(conn):
     assert r["evidence"].get("acquisition") is None
 
 
-def test_cq7_obtain_materials_compiles_mission_and_missing_recipe(conn):
+def test_cq7_obtain_materials_compiles_mission_and_recipe(conn):
     q = "cq7的蓝图怎么获取以及我要制造的话，材料怎么得。"
     r = answer_question(conn, q)
     assert r["confidence"] == "high"
@@ -303,10 +317,14 @@ def test_cq7_obtain_materials_compiles_mission_and_missing_recipe(conn):
     assert acq["pool"] == "BP_MISSIONREWARD_Battaglia_behr_rifle_ballistic_03"
     assert acq["missions"]
     assert acq["missions"][0]["title"] == "非常危险的黑匣子回收"
-    assert "crafting_recipe" in acq["missing"]
+    assert acq["materials"]
+    names = {m["name"] for m in acq["materials"]}
+    assert {"Aluminum", "Hephaestanite", "Iron"} <= names
+    assert "crafting_recipe" not in acq["missing"]
     draft = r["answer_draft"]
     assert "蓝图" in draft or "奖励" in draft
     assert "黑匣子" in draft or "Battaglia" in draft
-    assert "配方" in draft or "材料" in draft
+    assert "Aluminum" in draft and "Iron" in draft
+    assert "采矿" in draft or "材料" in draft
     assert "商店不可直接购买" not in draft
-    assert r["evidence"].get("missing") == ["crafting_recipe"]
+    assert r["evidence"].get("missing") == []

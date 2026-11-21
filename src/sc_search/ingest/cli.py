@@ -92,6 +92,24 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 raise
             return _sync_result("scw", rows, path)
 
+        if args.source == "scw_blueprints":
+            from sc_search.ingest.adapters.scw_blueprints import (
+                ScwBlueprintError,
+                sync_scw_blueprints,
+            )
+
+            try:
+                rows = sync_scw_blueprints(conn)
+                conn.commit()
+            except ScwBlueprintError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            return _sync_result("scw_blueprints", rows, path)
+
         if args.source == "wiki":
             from sc_search.ingest.adapters.wiki import WikiError, sync_wiki
 
@@ -156,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="Sync a data source into SQLite")
     p_sync.add_argument(
         "source",
-        choices=["uex", "scmdb", "scw", "wiki", "aliases", "zh"],
+        choices=["uex", "scmdb", "scw", "scw_blueprints", "wiki", "aliases", "zh"],
         help="Source adapter name",
     )
     p_sync.add_argument(

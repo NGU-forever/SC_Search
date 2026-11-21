@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 
@@ -115,6 +116,7 @@ def _acquisition_unknown(
     pool: str | None,
     *,
     missions: list[dict] | None = None,
+    materials: list[dict] | None = None,
     missing: list[str] | None = None,
 ) -> dict:
     return {
@@ -123,8 +125,46 @@ def _acquisition_unknown(
         "pool": pool,
         "hint_zh": "本地仅见蓝图/奖励记录，未找到商店报价",
         "missions": list(missions or []),
+        "materials": list(materials or []),
         "missing": list(missing or []),
     }
+
+
+def _recipe_materials(conn: sqlite3.Connection, blueprint_entity_id: int) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT te.canonical_name AS name, rel.qty, rel.meta_json
+        FROM relations rel
+        JOIN entities te ON te.id = rel.to_id
+        WHERE rel.from_id = ?
+          AND rel.rel_type = 'blueprint_requires'
+        ORDER BY te.canonical_name
+        """,
+        (blueprint_entity_id,),
+    ).fetchall()
+    out: list[dict] = []
+    for r in rows:
+        unit = "SCU"
+        ingredient_kind = "resource"
+        raw = r["meta_json"]
+        if raw:
+            try:
+                meta = json.loads(raw) if isinstance(raw, str) else raw
+                if isinstance(meta, dict):
+                    unit = str(meta.get("unit") or unit)
+                    ingredient_kind = str(meta.get("ingredient_kind") or ingredient_kind)
+            except json.JSONDecodeError:
+                pass
+        qty = r["qty"]
+        out.append(
+            {
+                "name": r["name"],
+                "qty": qty,
+                "unit": unit,
+                "ingredient_kind": ingredient_kind,
+            }
+        )
+    return out
 
 
 def _missions_for_pool(conn: sqlite3.Connection, pool: str | None) -> list[dict]:
@@ -184,6 +224,21 @@ def _missions_for_pool(conn: sqlite3.Connection, pool: str | None) -> list[dict]
     return out
 
 
+def _format_material_line(m: dict) -> str:
+    name = str(m.get("name") or "")
+    qty = m.get("qty")
+    unit = str(m.get("unit") or "")
+    if qty is None:
+        return name
+    if isinstance(qty, float) and qty.is_integer():
+        qty = int(qty)
+    if unit == "SCU":
+        return f"{name} {qty} SCU"
+    if unit == "count":
+        return f"{name} ×{qty}"
+    return f"{name} {qty}{(' ' + unit) if unit else ''}".strip()
+
+
 def _draft_blueprint_unknown(
     label: str,
     pool: str | None,
@@ -191,6 +246,7 @@ def _draft_blueprint_unknown(
     src_ver: str | None,
     *,
     missions: list[dict] | None = None,
+    materials: list[dict] | None = None,
     wants_materials: bool = False,
     missing: list[str] | None = None,
 ) -> str:
@@ -210,6 +266,14 @@ def _draft_blueprint_unknown(
             meta.append(str(m["system"]))
         meta_bit = f"（{'，'.join(meta)}）" if meta else ""
         parts.append(f"任务线索：{title}{meta_bit}")
+    materials = materials or []
+    if materials:
+        joined = "、".join(_format_material_line(x) for x in materials)
+        has_resource = any(
+            str(x.get("ingredient_kind") or "") == "resource" for x in materials
+        )
+        how = "资源类需采矿/精炼获取（具体矿点库未收录）" if has_resource else "按配方筹备材料"
+        parts.append(f"制造材料：{joined}；{how}")
     miss = set(missing or [])
     if wants_materials and "crafting_recipe" in miss:
         parts.append("库未收录制造配方/材料来源，不能编造")
@@ -411,17 +475,26 @@ def answer_question(
         all_facts = bundle.get("facts") or []
         pool = _pool_name_from_facts(all_facts)
         missions = _missions_for_pool(conn, pool)
+        entity_row = bundle.get("entity") or {}
+        bp_id = entity_row.get("id")
+        materials = (
+            _recipe_materials(conn, int(bp_id)) if bp_id is not None else []
+        )
         wants_materials = bool(_CRAFT_MATERIALS_RE.search(question or ""))
         acq_missing: list[str] = []
-        if wants_materials:
+        if wants_materials and not materials:
             acq_missing.append("crafting_recipe")
         evidence["acquisition"] = _acquisition_unknown(
-            pool, missions=missions, missing=acq_missing
+            pool,
+            missions=missions,
+            materials=materials,
+            missing=acq_missing,
         )
         evidence["facts"] = [_slim_fact(f) for f in all_facts[:fact_limit]]
         evidence["missing"] = list(acq_missing)
+        rels: list[dict] = []
         if missions:
-            evidence["relations"] = [
+            rels.extend(
                 {
                     "rel_type": "mission_reward_blueprint_pool",
                     "from_name": m.get("canonical_name"),
@@ -429,8 +502,18 @@ def answer_question(
                     "qty": None,
                 }
                 for m in missions[:_RELATION_LIMIT]
-            ]
-        src_ver = (bundle.get("entity") or {}).get("game_version")
+            )
+        for mat in materials[:_RELATION_LIMIT]:
+            rels.append(
+                {
+                    "rel_type": "blueprint_requires",
+                    "from_name": primary,
+                    "to_name": mat.get("name"),
+                    "qty": mat.get("qty"),
+                }
+            )
+        evidence["relations"] = rels
+        src_ver = entity_row.get("game_version")
         return {
             "intent": intent,
             "path": plan["path"],
@@ -442,6 +525,7 @@ def answer_question(
                 live,
                 src_ver,
                 missions=missions,
+                materials=materials,
                 wants_materials=wants_materials,
                 missing=acq_missing,
             ),
