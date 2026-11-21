@@ -54,23 +54,32 @@ UEX_API_TOKEN=粘贴你的Token
 
 ### 3. 初始化并下载数据
 
-第一次建议全部跑一遍（大约几分钟，视网速而定）：
+**推荐：一键脚本**（首次或补丁后都可用，大约几分钟，视网速而定）：
+
+```bash
+# macOS / Linux
+chmod +x scripts/sync_all.sh
+./scripts/sync_all.sh
+```
+
+```powershell
+# Windows PowerShell
+.\scripts\sync_all.ps1
+```
+
+脚本会依次执行：`init` → `uex` → `scmdb` → `scw` → `wiki` → `aliases` → `zh`。  
+若未配置 `UEX_API_TOKEN`，物价同步会跳过，其它源照常进行。
+
+也可以手动逐步执行：
 
 ```bash
 python -m sc_search.ingest init
-
 python -m sc_search.ingest sync uex                 # 物价（需 Token）
 python -m sc_search.ingest sync scmdb --channel live  # 任务 / 蓝图奖励
 python -m sc_search.ingest sync scw                 # 飞船参数
 python -m sc_search.ingest sync wiki                # 英文 Wiki 摘要
 python -m sc_search.ingest sync aliases             # 民间俗称（大白鲨等）
 python -m sc_search.ingest sync zh                  # 汉化组标准中文译名（global.ini）
-```
-
-
-查看同步是否成功：
-
-```bash
 python -m sc_search.ingest status
 ```
 
@@ -118,17 +127,14 @@ Windows 注意：`command` 一般写成
 
 ## 游戏更新后怎么办
 
-补丁或物价变化后，在项目目录重新同步即可（按需选跑）：
+补丁或物价变化后，再跑一次一键脚本即可：
 
 ```bash
-python -m sc_search.ingest sync uex
-python -m sc_search.ingest sync scmdb --channel live
-# PTU 可试：python -m sc_search.ingest sync scmdb --channel ptu
-python -m sc_search.ingest sync scw
-python -m sc_search.ingest sync wiki
-python -m sc_search.ingest sync aliases
-python -m sc_search.ingest sync zh
+./scripts/sync_all.sh          # macOS / Linux
+# .\scripts\sync_all.ps1       # Windows
 ```
+
+也可以只同步某一源，例如 PTU：`python -m sc_search.ingest sync scmdb --channel ptu`。
 
 
 MCP **不会**自动改库，避免误触发大流量下载；同步请在终端手动执行。
