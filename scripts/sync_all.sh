@@ -43,7 +43,14 @@ run -m sc_search.ingest sync scmdb --channel live
 run -m sc_search.ingest sync scw
 run -m sc_search.ingest sync wiki
 run -m sc_search.ingest sync aliases
+
+set +e
 run -m sc_search.ingest sync zh
+ZH_EC=$?
+set -e
+if [[ "$ZH_EC" -ne 0 ]]; then
+  echo "（跳过）zh 同步失败——可稍后重试；若 data/raw 已有 global.*.ini 缓存，一般会自动回退使用"
+fi
 
 echo ""
 echo "==> 同步完成，最近状态："

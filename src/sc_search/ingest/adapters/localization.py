@@ -50,11 +50,23 @@ def _is_short_name(value: str, max_len: int = 64) -> bool:
     return True
 
 
+def _load_cached_ini_pair(raw_dir: Path) -> tuple[dict[str, str], dict[str, str]] | None:
+    org_path = raw_dir / "global.orginal.ini"
+    zh_path = raw_dir / "global.full.ini"
+    if not org_path.is_file() or not zh_path.is_file():
+        return None
+    return (
+        parse_ini(org_path.read_text(encoding="utf-8", errors="replace")),
+        parse_ini(zh_path.read_text(encoding="utf-8", errors="replace")),
+    )
+
+
 def fetch_ini_pair(
     client: httpx.Client | None = None,
     *,
     raw_dir: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, str]]:
+    raw_dir = raw_dir or (project_root() / "data" / "raw")
     owned = client is None
     client = client or httpx.Client(
         timeout=180.0,
@@ -62,17 +74,22 @@ def fetch_ini_pair(
         follow_redirects=True,
     )
     try:
-        org_resp = client.get(ORG_URL)
-        zh_resp = client.get(FULL_URL)
-        if org_resp.status_code >= 400 or zh_resp.status_code >= 400:
-            raise LocalizationError(
-                f"download failed org={org_resp.status_code} zh={zh_resp.status_code}"
-            )
-        raw_dir = raw_dir or (project_root() / "data" / "raw")
-        raw_dir.mkdir(parents=True, exist_ok=True)
-        (raw_dir / "global.orginal.ini").write_bytes(org_resp.content)
-        (raw_dir / "global.full.ini").write_bytes(zh_resp.content)
-        return parse_ini(org_resp.text), parse_ini(zh_resp.text)
+        try:
+            org_resp = client.get(ORG_URL)
+            zh_resp = client.get(FULL_URL)
+            if org_resp.status_code >= 400 or zh_resp.status_code >= 400:
+                raise LocalizationError(
+                    f"download failed org={org_resp.status_code} zh={zh_resp.status_code}"
+                )
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            (raw_dir / "global.orginal.ini").write_bytes(org_resp.content)
+            (raw_dir / "global.full.ini").write_bytes(zh_resp.content)
+            return parse_ini(org_resp.text), parse_ini(zh_resp.text)
+        except Exception as exc:
+            cached = _load_cached_ini_pair(raw_dir)
+            if cached is not None:
+                return cached
+            raise LocalizationError(f"download failed and no local cache: {exc}") from exc
     finally:
         if owned:
             client.close()

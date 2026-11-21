@@ -38,7 +38,12 @@ Invoke-Ingest sync scmdb --channel live
 Invoke-Ingest sync scw
 Invoke-Ingest sync wiki
 Invoke-Ingest sync aliases
-Invoke-Ingest sync zh
+
+try {
+  Invoke-Ingest sync zh
+} catch {
+  Write-Host "（跳过）zh 同步失败——可稍后重试；若 data/raw 已有 global.*.ini 缓存，一般会自动回退使用"
+}
 
 Write-Host ""
 Write-Host "==> 同步完成，最近状态："
