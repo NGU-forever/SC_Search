@@ -22,12 +22,12 @@
 * **本地知识库 MCP（优先）**：
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**。
   * **默认入口**：事实类先 `sc_answer(question)`（`detail_level` 默认 `brief`）→ 优先转发 `answer_draft`；需要细节时再 `sc_answer(..., detail_level="full")` 或 `sc_entity_facts`。
-  * **浏览器门禁**：`path=mcp_only` 且高置信 → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
+  * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
   * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
   * 不要编造库中没有的数据。
   * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
-  * 中文提问先 `sc_resolve_name`：标准译名来自汉化组 ini，俗称来自 seed；再查物价/事实/文档；浏览器 `search_term` 必须用 plan 或 `sc_answer` 证据中的英文标准名。
+  * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
 
 
 ---
@@ -72,7 +72,7 @@
 
 ## 6. 浏览器交互与自动化规范
 
-* **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算或明确要求核对时开浏览器**；高置信本地 `answer_draft` 不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
+* **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算或明确要求核对时开浏览器**；`confidence=high` 本地 `answer_draft` 不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
 * **剧本**：只用返回里的 `start_url`；`search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表 → **关闭标签**。
 * **禁止**：`/auth`、`/settings`；同一题未在 plan/`sc_answer` 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词。
 * **失败降级**：超时或失败时，用已有 MCP facts 或 `sc_answer` 静态草稿答静态部分，并标明「配装/DPS 未取到」。
