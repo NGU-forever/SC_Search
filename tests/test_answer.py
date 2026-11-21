@@ -3,7 +3,14 @@ from pathlib import Path
 import pytest
 
 from sc_search.ingest.db import connect, init_db
-from sc_search.ingest.normalize import replace_price, start_run, upsert_alias, upsert_entity, upsert_fact
+from sc_search.ingest.normalize import (
+    insert_relation,
+    replace_price,
+    start_run,
+    upsert_alias,
+    upsert_entity,
+    upsert_fact,
+)
 from sc_search.query.answer import answer_question
 
 
@@ -65,6 +72,15 @@ def _seed(db_path: Path) -> None:
         ingest_run_id=run,
         reported_at="2026-01-01T00:00:00+00:00",
     )
+    rsi = upsert_entity(conn, kind="faction", canonical_name="RSI", game_version="4.10.3")
+    insert_relation(
+        conn,
+        from_id=ship,
+        to_id=rsi,
+        rel_type="built_by",
+        source="test",
+        game_version="4.10.3",
+    )
     conn.commit()
     conn.close()
 
@@ -76,6 +92,13 @@ def conn(tmp_path: Path):
     c = connect(db)
     yield c
     c.close()
+
+
+def test_facts_manufacturer_not_cargo(conn):
+    r = answer_question(conn, "卡拉克厂家", detail_level="brief")
+    assert r["intent"] == "facts"
+    assert "RSI" in r["answer_draft"] or "manufacturer" in r["answer_draft"].lower()
+    assert "456" not in r["answer_draft"]
 
 
 def test_facts_cargo_brief(conn):
@@ -93,6 +116,15 @@ def test_facts_full_thicker(conn):
     full = answer_question(conn, "卡拉克", detail_level="full")
     assert len(brief["evidence"]["facts"]) == 5
     assert len(full["evidence"]["facts"]) > len(brief["evidence"]["facts"])
+    assert full["evidence"]["relations"]
+    assert full["evidence"]["relations"][0]["rel_type"] == "built_by"
+
+
+def test_prices_terminal_query(conn):
+    r = answer_question(conn, "Lorville 价格")
+    assert r["intent"] == "prices"
+    assert r["evidence"]["prices"]
+    assert all(p.get("terminal") == "Lorville" for p in r["evidence"]["prices"])
 
 
 def test_prices_sell(conn):

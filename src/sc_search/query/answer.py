@@ -4,10 +4,19 @@ import sqlite3
 
 from sc_search.query.entities import entity_facts
 from sc_search.query.plan import query_plan
-from sc_search.query.prices import best_prices
+from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.search import search_docs
 
 _CARGO_KEYS = ("cargo_capacity", "cargo", "scu", "货舱")
+_ZH_KEY_HINTS = (
+    ("厂家", ("manufacturer",)),
+    ("制造商", ("manufacturer",)),
+    ("长度", ("length", "beam", "height")),
+    ("多长", ("length",)),
+    ("宽", ("beam",)),
+    ("高", ("height",)),
+)
+_RELATION_LIMIT = 5
 _BRIEF_FACT_LIMIT = 5
 _FULL_FACT_LIMIT = 25
 _BRIEF_PRICE_LIMIT = 3
@@ -17,7 +26,7 @@ _FULL_DOC_LIMIT = 5
 
 
 def _empty_evidence() -> dict:
-    return {"entities": [], "facts": [], "prices": [], "docs": [], "missing": []}
+    return {"entities": [], "facts": [], "relations": [], "prices": [], "docs": [], "missing": []}
 
 
 def _display_name(entities: list[dict]) -> str:
@@ -41,17 +50,54 @@ def _fact_value(f: dict) -> str:
     return str(f.get("value_text") or "")
 
 
+def _question_wants_cargo(question: str) -> bool:
+    q = question or ""
+    ql = q.lower()
+    return any(
+        tok in q or tok in ql for tok in ("货舱", "载货", "cargo", "scu")
+    )
+
+
+def _terminal_from_context(entities: list[dict], question: str) -> str | None:
+    terminal = next((e for e in entities if e.get("kind") == "terminal"), None)
+    if terminal:
+        return str(terminal["canonical_name"])
+    q = question or ""
+    if ("在某" in q or "在" in q) and entities:
+        terminal = next((e for e in entities if e.get("kind") == "terminal"), None)
+        if terminal:
+            return str(terminal["canonical_name"])
+    return None
+
+
+def _slim_relations(rows: list[dict], limit: int = _RELATION_LIMIT) -> list[dict]:
+    return [
+        {
+            "rel_type": r.get("rel_type"),
+            "from_name": r.get("from_name"),
+            "to_name": r.get("to_name"),
+            "qty": r.get("qty"),
+        }
+        for r in rows[:limit]
+    ]
+
+
 def _pick_facts(facts: list[dict], question: str, limit: int) -> list[dict]:
-    q = (question or "").lower()
+    q = question or ""
+    ql = q.lower()
+    wants_cargo = _question_wants_cargo(q)
     scored: list[tuple[int, dict]] = []
     for f in facts:
         key = str(f.get("key") or "").lower()
         score = 0
-        if any(k in key for k in _CARGO_KEYS) or "cargo" in key:
+        if wants_cargo and (any(k in key for k in _CARGO_KEYS) or "cargo" in key):
             score += 10
-            if "货舱" in q or "cargo" in q:
+            if "货舱" in q or "cargo" in ql:
                 score += 3
-        if key in q or any(tok and tok in key for tok in q.split() if len(tok) > 1):
+        for zh, keys in _ZH_KEY_HINTS:
+            if zh in q and any(k in key for k in keys):
+                score += 8
+        if key in ql or any(tok and tok in key for tok in ql.split() if len(tok) > 1):
             score += 3
         if score:
             scored.append((score, f))
@@ -129,9 +175,17 @@ def answer_question(
         bundle = entity_facts(conn, primary)
         if bundle:
             all_facts = bundle.get("facts") or []
+            all_relations = bundle.get("relations") or []
             picked = _pick_facts(all_facts, question, fact_limit)
             evidence["facts"] = picked
-            detail_available = len(all_facts) > len(picked) or level == "brief"
+            if level == "full" and all_relations:
+                slim = _slim_relations(all_relations)
+                evidence["relations"] = slim
+            detail_available = (
+                len(all_facts) > len(picked)
+                or len(all_relations) > len(evidence.get("relations") or [])
+                or level == "brief"
+            )
             ver = (bundle.get("entity") or {}).get("game_version") or ""
             if intent == "facts":
                 if picked:
@@ -167,21 +221,44 @@ def answer_question(
         for step in plan.get("mcp_steps") or []:
             if step.get("tool") == "sc_best_prices":
                 side = (step.get("args") or {}).get("side") or "sell"
-        commodity = primary or question
-        rows = best_prices(conn, commodity, side=side, limit=price_limit)
+        entities = evidence["entities"]
+        terminal_name = _terminal_from_context(entities, question)
+        commodity_entity = next((e for e in entities if e.get("kind") == "commodity"), None)
+        commodity = (commodity_entity or {}).get("canonical_name") or primary or question
+
+        if terminal_name:
+            rows = terminal_prices(conn, terminal_name, side=side)
+            if commodity_entity:
+                cn = str(commodity_entity["canonical_name"])
+                rows = [
+                    r
+                    for r in rows
+                    if str(r.get("commodity") or "").lower() == cn.lower()
+                ]
+            rows = rows[:price_limit]
+        else:
+            rows = best_prices(conn, commodity, side=side, limit=price_limit)
         evidence["prices"] = _slim_prices(rows)
         if rows:
             top = rows[0]
-            draft = (
-                f"{top.get('commodity')} {side} 较优：{top.get('terminal')} "
-                f"约 {top.get('price')} aUEC"
-                f"{('（' + str(top.get('game_version')) + '）') if top.get('game_version') else ''}。"
-            )
+            if terminal_name and commodity_entity is None:
+                draft = (
+                    f"{terminal_name} {side} 报价示例：{top.get('commodity')} "
+                    f"约 {top.get('price')} aUEC"
+                    f"{('（' + str(top.get('game_version')) + '）') if top.get('game_version') else ''}。"
+                )
+            else:
+                draft = (
+                    f"{top.get('commodity')} {side} 较优：{top.get('terminal')} "
+                    f"约 {top.get('price')} aUEC"
+                    f"{('（' + str(top.get('game_version')) + '）') if top.get('game_version') else ''}。"
+                )
             detail_available = True
             follow_ups = ["看更多终端", "查买入价"] if side == "sell" else ["看更多终端", "查卖出价"]
         else:
             missing.append("prices")
-            draft = f"本地没有 {commodity} 的 {side} 报价。"
+            target = terminal_name or commodity
+            draft = f"本地没有 {target} 的 {side} 报价。"
             detail_available = False
 
     elif intent == "docs":
