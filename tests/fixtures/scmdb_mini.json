@@ -1,0 +1,63 @@
+{
+  "version": "4.10.3-live.test",
+  "factions": {
+    "faction-1": {"name": "Foxwell Enforcement", "nameKey": "@foxwell"}
+  },
+  "blueprintPools": {
+    "pool-1": {
+      "name": "BP_MISSIONREWARD_Test",
+      "source": "mission",
+      "blueprints": [
+        {
+          "blueprintRecord": "bp-1",
+          "weight": 1,
+          "entityClass": "class-1",
+          "name": "Test Helmet Blueprint"
+        },
+        {
+          "blueprintRecord": "bp-2",
+          "weight": 2,
+          "entityClass": "class-2",
+          "name": "Test Armor Blueprint"
+        }
+      ]
+    }
+  },
+  "contracts": [
+    {
+      "id": "mission-1",
+      "debugName": "Foxwell_Test_Mission",
+      "title": "Orange Level Contract: Test Patrol",
+      "category": "career",
+      "missionType": "Mercenary",
+      "contractorName": "Foxwell Enforcement",
+      "factionGuid": "faction-1",
+      "illegal": false,
+      "rewardUEC": 50000,
+      "availableSystems": ["Pyro"],
+      "blueprintRewards": [
+        {
+          "blueprintPool": "pool-1",
+          "chance": 1,
+          "poolName": "BP_MISSIONREWARD_Test",
+          "trigger": "complete"
+        }
+      ],
+      "itemRewards": [
+        {"entityClass": "item-1", "name": "MG Scrip", "amount": 14}
+      ]
+    },
+    {
+      "id": "mission-2",
+      "debugName": "Foxwell_Test_Mission_Alt",
+      "title": "Orange Level Contract: Test Patrol",
+      "category": "career",
+      "missionType": "Mercenary",
+      "contractorName": "Foxwell Enforcement",
+      "factionGuid": "faction-1",
+      "illegal": false,
+      "rewardUEC": 60000,
+      "availableSystems": ["Stanton"]
+    }
+  ]
+}

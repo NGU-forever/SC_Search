@@ -47,6 +47,29 @@ def test_replace_price_keeps_single_row(tmp_path: Path) -> None:
     conn.close()
 
 
+def test_upsert_entity_duplicate_names_same_kind(tmp_path: Path) -> None:
+    conn = connect(tmp_path / "t.sqlite")
+    init_db(conn)
+    a = upsert_entity(
+        conn,
+        kind="faction",
+        canonical_name="Duplicated Org",
+        game_version="4.10.3",
+        uuid="scmdb-faction-a",
+    )
+    b = upsert_entity(
+        conn,
+        kind="faction",
+        canonical_name="Duplicated Org",
+        game_version="4.10.3",
+        uuid="scmdb-faction-b",
+    )
+    assert a == b
+    count = conn.execute("SELECT COUNT(*) AS c FROM entities WHERE kind = 'faction'").fetchone()["c"]
+    assert count == 1
+    conn.close()
+
+
 def test_upsert_alias(tmp_path: Path) -> None:
     conn = connect(tmp_path / "t.sqlite")
     init_db(conn)

@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 
 from sc_search.ingest.db import connect
 from sc_search.paths import get_db_path
+from sc_search.query.entities import entity_facts
 from sc_search.query.freshness import data_freshness
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.resolve import resolve_name
@@ -105,10 +106,28 @@ def sc_data_freshness(source: str | None = None) -> str:
         return _err(str(exc))
 
 
+@mcp.tool()
+def sc_entity_facts(name_or_id: str) -> str:
+    """Facts and relations for a mission, blueprint, item, or faction from local SCMDB/UEX data."""
+    try:
+        conn = open_db()
+        try:
+            data = entity_facts(conn, name_or_id)
+            if data is None:
+                return _err(f"entity not found: {name_or_id!r}")
+            meta = {"game_version": data["entity"].get("game_version")}
+            return _ok(data, meta)
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
 # Expose undecorated handlers for unit tests
 handlers = {
     "sc_resolve_name": sc_resolve_name,
     "sc_best_prices": sc_best_prices,
     "sc_terminal_prices": sc_terminal_prices,
     "sc_data_freshness": sc_data_freshness,
+    "sc_entity_facts": sc_entity_facts,
 }

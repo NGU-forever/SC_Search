@@ -58,6 +58,7 @@ def upsert_entity(
     uuid: str | None = None,
 ) -> int:
     now = _utcnow()
+    row = None
     if uuid:
         row = conn.execute(
             """
@@ -66,7 +67,7 @@ def upsert_entity(
             """,
             (kind, uuid, game_version),
         ).fetchone()
-    else:
+    if row is None:
         row = conn.execute(
             """
             SELECT id FROM entities
@@ -80,21 +81,53 @@ def upsert_entity(
         conn.execute(
             """
             UPDATE entities
-            SET canonical_name = ?, slug = ?, uuid = ?, updated_at = ?
+            SET canonical_name = ?, slug = COALESCE(?, slug),
+                uuid = COALESCE(?, uuid), updated_at = ?
             WHERE id = ?
             """,
             (canonical_name, slug, uuid, now, entity_id),
         )
         return entity_id
 
-    cur = conn.execute(
-        """
-        INSERT INTO entities (kind, canonical_name, slug, uuid, game_version, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        (kind, canonical_name, slug, uuid, game_version, now),
-    )
-    return int(cur.lastrowid)
+    try:
+        cur = conn.execute(
+            """
+            INSERT INTO entities (kind, canonical_name, slug, uuid, game_version, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (kind, canonical_name, slug, uuid, game_version, now),
+        )
+        return int(cur.lastrowid)
+    except sqlite3.IntegrityError:
+        # Concurrent/duplicate name or uuid under unique indexes — reuse existing row.
+        if uuid:
+            row = conn.execute(
+                """
+                SELECT id FROM entities
+                WHERE kind = ? AND uuid = ? AND game_version = ?
+                """,
+                (kind, uuid, game_version),
+            ).fetchone()
+        if row is None:
+            row = conn.execute(
+                """
+                SELECT id FROM entities
+                WHERE kind = ? AND canonical_name = ? AND game_version = ?
+                """,
+                (kind, canonical_name, game_version),
+            ).fetchone()
+        if row is None:
+            raise
+        entity_id = int(row["id"])
+        conn.execute(
+            """
+            UPDATE entities
+            SET slug = COALESCE(?, slug), uuid = COALESCE(?, uuid), updated_at = ?
+            WHERE id = ?
+            """,
+            (slug, uuid, now, entity_id),
+        )
+        return entity_id
 
 
 def upsert_alias(
@@ -151,4 +184,68 @@ def replace_price(
             game_version,
             ingest_run_id,
         ),
+    )
+
+
+def upsert_fact(
+    conn: sqlite3.Connection,
+    *,
+    entity_id: int,
+    key: str,
+    source: str,
+    game_version: str,
+    ingest_run_id: int | None = None,
+    value_text: str | None = None,
+    value_num: float | None = None,
+    unit: str | None = None,
+) -> None:
+    conn.execute(
+        """
+        DELETE FROM facts
+        WHERE entity_id = ? AND key = ? AND source = ? AND game_version = ?
+        """,
+        (entity_id, key, source, game_version),
+    )
+    conn.execute(
+        """
+        INSERT INTO facts (
+          entity_id, key, value_text, value_num, unit, source, game_version, ingest_run_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (entity_id, key, value_text, value_num, unit, source, game_version, ingest_run_id),
+    )
+
+
+def insert_relation(
+    conn: sqlite3.Connection,
+    *,
+    from_id: int,
+    to_id: int,
+    rel_type: str,
+    source: str,
+    game_version: str,
+    qty: float | None = None,
+    meta_json: str | None = None,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO relations (from_id, to_id, rel_type, qty, meta_json, source, game_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (from_id, to_id, rel_type, qty, meta_json, source, game_version),
+    )
+
+
+def clear_source_facts_relations(
+    conn: sqlite3.Connection,
+    source: str,
+    game_version: str,
+) -> None:
+    conn.execute(
+        "DELETE FROM facts WHERE source = ? AND game_version = ?",
+        (source, game_version),
+    )
+    conn.execute(
+        "DELETE FROM relations WHERE source = ? AND game_version = ?",
+        (source, game_version),
     )

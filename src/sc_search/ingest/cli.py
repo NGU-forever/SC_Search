@@ -48,7 +48,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 rows = sync_uex(conn)
                 conn.commit()
             except UexError as exc:
-                conn.commit()  # keep failed ingest_runs row
+                conn.commit()
                 print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
                 return 1
             except Exception:
@@ -56,6 +56,34 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 raise
             print(json.dumps({"ok": True, "source": "uex", "row_count": rows, "db": str(path)}, ensure_ascii=False))
             return 0
+
+        if args.source == "scmdb":
+            from sc_search.ingest.adapters.scmdb import ScmdbError, sync_scmdb
+
+            try:
+                rows = sync_scmdb(conn, channel=args.channel, version=args.version)
+                conn.commit()
+            except ScmdbError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "source": "scmdb",
+                        "channel": args.channel,
+                        "row_count": rows,
+                        "db": str(path),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 0
+
         print(json.dumps({"ok": False, "error": f"unknown source: {args.source}"}, ensure_ascii=False))
         return 1
     finally:
@@ -73,7 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.set_defaults(func=cmd_status)
 
     p_sync = sub.add_parser("sync", help="Sync a data source into SQLite")
-    p_sync.add_argument("source", choices=["uex"], help="Source adapter name")
+    p_sync.add_argument("source", choices=["uex", "scmdb"], help="Source adapter name")
+    p_sync.add_argument(
+        "--channel",
+        default="live",
+        choices=["live", "ptu", "latest"],
+        help="SCMDB channel (ignored for uex)",
+    )
+    p_sync.add_argument("--version", default=None, help="Optional exact SCMDB version substring")
     p_sync.set_defaults(func=cmd_sync)
 
     return parser

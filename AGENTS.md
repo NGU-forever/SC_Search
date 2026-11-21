@@ -20,9 +20,9 @@
 * **优先从已记录的站点检索 (Priority Sources)**：
   * 检索时优先查阅并在可能时使用 [SOURCES.md](file:///Users/xiongtianyu/Desktop/SC_Search/SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
 * **本地知识库 MCP（优先）**：
-  * 涉及物价、终端、货物名称解析、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`** 工具：`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`。
-  * 库未覆盖或需交互计算时（Erkul 配装、采矿计算站、Spectrum 等）再使用浏览器；不要编造库中不存在的价格。
-  * 写入/同步数据库使用 CLI：`python -m sc_search.ingest sync uex`（MCP 只读）。
+  * 涉及物价、终端、货物名称解析、任务/蓝图事实、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`** 工具：`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`。
+  * 库未覆盖或需交互计算时（Erkul 配装、采矿计算站、Spectrum 等）再使用浏览器；不要编造库中不存在的价格或任务奖励。
+  * 写入/同步数据库使用 CLI（MCP 只读）：`python -m sc_search.ingest sync uex`；`python -m sc_search.ingest sync scmdb [--channel live|ptu]`。
 
 ---
 
