@@ -105,6 +105,72 @@ def _seed(db_path: Path) -> None:
         game_version="4.10.3",
         ingest_run_id=run,
     )
+    cq7 = upsert_entity(
+        conn, kind="blueprint", canonical_name="CQ7 Rifle", game_version="4.10.3"
+    )
+    upsert_alias(conn, cq7, "CQ7 Rifle", "en", "manual")
+    upsert_alias(conn, cq7, "CQ7 步枪", "zh", "manual")
+    cq7_pool_name = "BP_MISSIONREWARD_Battaglia_behr_rifle_ballistic_03"
+    upsert_fact(
+        conn,
+        entity_id=cq7,
+        key="pool_name",
+        value_text=cq7_pool_name,
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    pool = upsert_entity(
+        conn, kind="blueprint_pool", canonical_name=cq7_pool_name, game_version="4.10.3"
+    )
+    insert_relation(
+        conn,
+        from_id=pool,
+        to_id=cq7,
+        rel_type="pool_contains_blueprint",
+        source="scmdb",
+        game_version="4.10.3",
+        qty=1.0,
+    )
+    mission = upsert_entity(
+        conn,
+        kind="mission",
+        canonical_name="Battaglia_RecoverItem_VeryHard",
+        game_version="4.10.3",
+    )
+    upsert_alias(conn, mission, "非常危险的黑匣子回收", "zh", "localization")
+    upsert_alias(conn, mission, "Blackbox Retrieval Very Dangerous", "en", "scmdb")
+    upsert_fact(
+        conn,
+        entity_id=mission,
+        key="contractor",
+        value_text="Recco Battaglia",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    upsert_fact(
+        conn,
+        entity_id=mission,
+        key="systems",
+        value_text="Nyx",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    insert_relation(
+        conn,
+        from_id=mission,
+        to_id=pool,
+        rel_type="mission_reward_blueprint_pool",
+        source="scmdb",
+        game_version="4.10.3",
+        qty=1.0,
+    )
+    skin = upsert_entity(
+        conn, kind="item", canonical_name='CQ7 "Blacklist" Rifle', game_version="4.10.3"
+    )
+    upsert_alias(conn, skin, 'CQ7 "Blacklist" Rifle', "en", "manual")
     conn.commit()
     conn.close()
 
@@ -225,3 +291,22 @@ def test_blueprint_buy_acquisition_unknown(conn):
 def test_blueprint_what_is_no_acquisition_early_return(conn):
     r = answer_question(conn, "JS-400 是什么")
     assert r["evidence"].get("acquisition") is None
+
+
+def test_cq7_obtain_materials_compiles_mission_and_missing_recipe(conn):
+    q = "cq7的蓝图怎么获取以及我要制造的话，材料怎么得。"
+    r = answer_question(conn, q)
+    assert r["confidence"] == "high"
+    assert r["browser"]["needed"] is False
+    acq = r["evidence"]["acquisition"]
+    assert acq["shop_buyable"] == "unknown"
+    assert acq["pool"] == "BP_MISSIONREWARD_Battaglia_behr_rifle_ballistic_03"
+    assert acq["missions"]
+    assert acq["missions"][0]["title"] == "非常危险的黑匣子回收"
+    assert "crafting_recipe" in acq["missing"]
+    draft = r["answer_draft"]
+    assert "蓝图" in draft or "奖励" in draft
+    assert "黑匣子" in draft or "Battaglia" in draft
+    assert "配方" in draft or "材料" in draft
+    assert "商店不可直接购买" not in draft
+    assert r["evidence"].get("missing") == ["crafting_recipe"]

@@ -10,9 +10,12 @@ from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.search import search_docs
 
 _OBTAIN_RE = re.compile(
-    r"(哪里买|在哪买|能买到|买得到|多少钱|价格|报价|哪[买卖出]|买点|卖点|\bbuy\b|\bsell\b|\bprice\b|买)",
+    r"(哪里买|在哪买|能买到|买得到|多少钱|价格|报价|哪[买卖出]|买点|卖点|"
+    r"获取|怎么得|如何得|掉落|奖励|蓝图|制造|制作|配方|材料|"
+    r"\bbuy\b|\bsell\b|\bprice\b|\bcrafting\b|\bblueprint\b|买)",
     re.I,
 )
+_CRAFT_MATERIALS_RE = re.compile(r"(材料|配方|制造|制作|crafting)", re.I)
 
 _PLACEHOLDER_VERSIONS = frozenset(
     {"scw-live", "wiki-live", "aliases", "localization-full", "unknown"}
@@ -108,23 +111,109 @@ def _pool_name_from_facts(facts: list[dict]) -> str | None:
     return None
 
 
-def _acquisition_unknown(pool: str | None) -> dict:
+def _acquisition_unknown(
+    pool: str | None,
+    *,
+    missions: list[dict] | None = None,
+    missing: list[str] | None = None,
+) -> dict:
     return {
         "mode": "blueprint_reward",
         "shop_buyable": "unknown",
         "pool": pool,
         "hint_zh": "本地仅见蓝图/奖励记录，未找到商店报价",
+        "missions": list(missions or []),
+        "missing": list(missing or []),
     }
 
 
+def _missions_for_pool(conn: sqlite3.Connection, pool: str | None) -> list[dict]:
+    if not pool:
+        return []
+    rows = conn.execute(
+        """
+        SELECT m.id, m.canonical_name
+        FROM entities pool
+        JOIN relations rel
+          ON rel.to_id = pool.id
+         AND rel.rel_type = 'mission_reward_blueprint_pool'
+        JOIN entities m ON m.id = rel.from_id AND m.kind = 'mission'
+        WHERE pool.canonical_name = ? COLLATE NOCASE
+        LIMIT 5
+        """,
+        (pool,),
+    ).fetchall()
+    out: list[dict] = []
+    for r in rows:
+        mid = int(r["id"])
+        aliases = conn.execute(
+            """
+            SELECT alias, lang FROM aliases WHERE entity_id = ?
+            ORDER BY CASE lang WHEN 'zh' THEN 0 WHEN 'en' THEN 1 ELSE 2 END, length(alias) DESC
+            """,
+            (mid,),
+        ).fetchall()
+        title = None
+        for a in aliases:
+            alias = str(a["alias"] or "")
+            if a["lang"] == "zh" and alias:
+                title = alias
+                break
+        if not title:
+            for a in aliases:
+                alias = str(a["alias"] or "")
+                if alias and alias != r["canonical_name"]:
+                    title = alias
+                    break
+        fact_rows = conn.execute(
+            """
+            SELECT key, value_text FROM facts
+            WHERE entity_id = ? AND key IN ('contractor', 'systems')
+            """,
+            (mid,),
+        ).fetchall()
+        fmap = {str(f["key"]): f["value_text"] for f in fact_rows}
+        out.append(
+            {
+                "canonical_name": r["canonical_name"],
+                "title": title or r["canonical_name"],
+                "contractor": fmap.get("contractor"),
+                "system": fmap.get("systems"),
+            }
+        )
+    return out
+
+
 def _draft_blueprint_unknown(
-    label: str, pool: str | None, live: str, src_ver: str | None
+    label: str,
+    pool: str | None,
+    live: str,
+    src_ver: str | None,
+    *,
+    missions: list[dict] | None = None,
+    wants_materials: bool = False,
+    missing: list[str] | None = None,
 ) -> str:
     pool_bit = f"（池：{pool}）" if pool else ""
-    return (
+    parts = [
         f"{label} 本地仅见蓝图/任务奖励记录{pool_bit}，未找到商店报价；"
-        f"不能据此断言绝对买不到{_draft_live_suffix(live, src_ver)}。"
-    )
+        f"不能据此断言绝对买不到"
+    ]
+    missions = missions or []
+    if missions:
+        m = missions[0]
+        title = m.get("title") or m.get("canonical_name")
+        meta = []
+        if m.get("contractor"):
+            meta.append(str(m["contractor"]))
+        if m.get("system"):
+            meta.append(str(m["system"]))
+        meta_bit = f"（{'，'.join(meta)}）" if meta else ""
+        parts.append(f"任务线索：{title}{meta_bit}")
+    miss = set(missing or [])
+    if wants_materials and "crafting_recipe" in miss:
+        parts.append("库未收录制造配方/材料来源，不能编造")
+    return "；".join(parts) + f"{_draft_live_suffix(live, src_ver)}。"
 
 
 def _display_name(entities: list[dict]) -> str:
@@ -321,9 +410,26 @@ def answer_question(
         bundle = entity_facts(conn, primary) or {}
         all_facts = bundle.get("facts") or []
         pool = _pool_name_from_facts(all_facts)
-        evidence["acquisition"] = _acquisition_unknown(pool)
+        missions = _missions_for_pool(conn, pool)
+        wants_materials = bool(_CRAFT_MATERIALS_RE.search(question or ""))
+        acq_missing: list[str] = []
+        if wants_materials:
+            acq_missing.append("crafting_recipe")
+        evidence["acquisition"] = _acquisition_unknown(
+            pool, missions=missions, missing=acq_missing
+        )
         evidence["facts"] = [_slim_fact(f) for f in all_facts[:fact_limit]]
-        evidence["missing"] = []
+        evidence["missing"] = list(acq_missing)
+        if missions:
+            evidence["relations"] = [
+                {
+                    "rel_type": "mission_reward_blueprint_pool",
+                    "from_name": m.get("canonical_name"),
+                    "to_name": pool,
+                    "qty": None,
+                }
+                for m in missions[:_RELATION_LIMIT]
+            ]
         src_ver = (bundle.get("entity") or {}).get("game_version")
         return {
             "intent": intent,
@@ -331,7 +437,13 @@ def answer_question(
             "confidence": "high",
             "live_game_version": live,
             "answer_draft": _draft_blueprint_unknown(
-                label or primary, pool, live, src_ver
+                label or primary,
+                pool,
+                live,
+                src_ver,
+                missions=missions,
+                wants_materials=wants_materials,
+                missing=acq_missing,
             ),
             "evidence": evidence,
             "detail_available": False,
