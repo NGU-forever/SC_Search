@@ -14,6 +14,13 @@ def _seed_ship(db_path: Path) -> None:
     upsert_alias(conn, eid, "卡拉克", "zh", "manual")
     gold = upsert_entity(conn, kind="commodity", canonical_name="Gold", game_version="4.10.3")
     upsert_alias(conn, gold, "黄金", "zh", "manual")
+    skin = upsert_entity(
+        conn, kind="item", canonical_name='CQ7 "Blacklist" Rifle', game_version="4.10.3"
+    )
+    upsert_alias(conn, skin, 'CQ7 "Blacklist" Rifle', "en", "manual")
+    bp = upsert_entity(conn, kind="blueprint", canonical_name="CQ7 Rifle", game_version="4.10.3")
+    upsert_alias(conn, bp, "CQ7 Rifle", "en", "manual")
+    upsert_alias(conn, bp, "CQ7 步枪", "zh", "manual")
     conn.commit()
     conn.close()
 
@@ -90,3 +97,13 @@ def test_mining_calc(conn):
     assert p["intent"] == "mining_calc"
     assert p["path"] == "mcp_then_browser"
     assert p["browser"]["start_url"] == "https://regolith.rocks"
+
+
+def test_shortcode_cq7_blueprint_context_prefers_blueprint(conn):
+    q = "cq7的蓝图怎么获取以及我要制造的话，材料怎么得。"
+    p = query_plan(conn, q)
+    assert p["entities"], "expected token resolve to find CQ7 entities"
+    kinds = {e["kind"] for e in p["entities"]}
+    assert "blueprint" in kinds
+    assert p["entities"][0]["kind"] == "blueprint"
+    assert p["entities"][0]["canonical_name"] == "CQ7 Rifle"

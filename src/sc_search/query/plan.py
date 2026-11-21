@@ -30,6 +30,14 @@ _DOCS_RE = re.compile(
 )
 _BUY_RE = re.compile(r"(买|\bbuy\b)", re.I)
 _SELL_RE = re.compile(r"(卖|哪出|\bsell\b)", re.I)
+# Short codes like CQ7, JS-400 (must include a digit to avoid English stopwords).
+_SHORTCODE_RE = re.compile(
+    r"(?<![A-Za-z0-9])([A-Za-z]{1,8}\d+[A-Za-z0-9\-]*|[A-Za-z]+\-\d+[A-Za-z0-9]*)(?![A-Za-z0-9])"
+)
+_BLUEPRINT_CTX_RE = re.compile(
+    r"(蓝图|制造|制作|配方|材料|获取|crafting|blueprint)",
+    re.I,
+)
 
 
 def _mcp_resolve_text(hint: str | None, entities: list[dict]) -> str:
@@ -117,6 +125,29 @@ def _entities_embedded_in_question(conn: sqlite3.Connection, question: str) -> l
     return _rank_rows(items) if items else []
 
 
+def _extract_shortcodes(question: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for m in _SHORTCODE_RE.finditer(question or ""):
+        tok = m.group(1)
+        key = tok.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append(tok)
+    return found
+
+
+def _prefer_blueprint_primary(entities: list[dict], question: str) -> list[dict]:
+    if not entities or not _BLUEPRINT_CTX_RE.search(question or ""):
+        return entities
+    bps = [e for e in entities if e.get("kind") == "blueprint"]
+    if not bps:
+        return entities
+    rest = [e for e in entities if e.get("kind") != "blueprint"]
+    return bps + rest
+
+
 def _resolve_entities(
     conn: sqlite3.Connection,
     hint: str | None,
@@ -136,13 +167,20 @@ def _resolve_entities(
             out.append(_entity_brief(m))
     q = (question or "").strip()
     if q:
+        for tok in _extract_shortcodes(q):
+            for m in resolve_name(conn, tok):
+                eid = int(m["id"])
+                if eid in seen:
+                    continue
+                seen.add(eid)
+                out.append(_entity_brief(m))
         for m in _entities_embedded_in_question(conn, q):
             eid = int(m["id"])
             if eid in seen:
                 continue
             seen.add(eid)
             out.append(_entity_brief(m))
-    return out
+    return _prefer_blueprint_primary(out, q)
 
 
 def _browser_off() -> dict:
