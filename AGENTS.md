@@ -21,12 +21,16 @@
   * 检索时优先查阅并在可能时使用 [SOURCES.md](file:///Users/xiongtianyu/Desktop/SC_Search/SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
 * **本地知识库 MCP（优先）**：
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**。
-  * **默认入口**：事实类先 `sc_answer(question)`（`detail_level` 默认 `brief`）→ 优先转发 `answer_draft`；需要细节时再 `sc_answer(..., detail_level="full")` 或 `sc_entity_facts`。
   * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
   * **置信度**：以 `sc_answer` 顶层 `confidence` 为准（可与嵌套 `plan.confidence` 不同）。`low`（及无命中字段的 `medium`）时勿擅自开浏览器；若 `follow_ups` 含「要用浏览器核实吗？」，等用户确认再开。
   * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
   * 不要编造库中没有的数据。
   * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。
+  * **理解 → 检索 → 成文（Agent 层）**：
+    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图含：`mission_rep`（任务/声望）、`mission_money`、`trade`、`ship_stats`/`ship_buy`、`blueprint`/`crafting`、`loadout`、`mining`、`bug_tip`、`lore_docs`、`patch_live`、`other`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
+    2. **检索**：只调 `sc-search` 白名单工具取证据；简单事实/物价可用 `sc_answer` 快路径；声望/任务列表用 `sc_resolve_name` + `sc_list_missions`（若可用）+ `sc_entity_facts`。
+    3. **成文**：只依据 MCP 证据组织中文；库无声望点数/效率则明说，不编造。
+  * **默认入口（简化）**：单实体静态参数/物价 → `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先理解槽位再按上表检索。
   * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
   * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
