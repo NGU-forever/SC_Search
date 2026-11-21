@@ -46,13 +46,18 @@ def apply_seed_aliases(
             continue
         matches = resolve_name(conn, target)
         entity_id = None
-        for m in matches:
-            if m.get("kind") == kind:
-                entity_id = int(m["id"])
-                break
-        if entity_id is None and matches:
-            entity_id = int(matches[0]["id"])
-        if entity_id is None:
+        exact = [
+            m
+            for m in matches
+            if str(m.get("canonical_name", "")).casefold() == target.casefold()
+            or str(m.get("matched_alias", "")).casefold() == target.casefold()
+        ]
+        pool = exact or matches
+        kind_hits = [m for m in pool if m.get("kind") == kind]
+        if kind_hits:
+            entity_id = int(kind_hits[0]["id"])
+        else:
+            # Do not attach slang to a wrong kind (e.g. mission containing "Quantanium").
             entity_id = upsert_entity(
                 conn,
                 kind=kind,

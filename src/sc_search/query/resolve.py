@@ -2,6 +2,29 @@ from __future__ import annotations
 
 import sqlite3
 
+_KIND_RANK = {
+    "ship": 0,
+    "location": 1,
+    "commodity": 2,
+    "terminal": 3,
+    "item": 4,
+    "faction": 5,
+    "blueprint": 6,
+    "blueprint_pool": 7,
+    "mission": 8,
+}
+
+
+def _rank_rows(rows: list) -> list[dict]:
+    items = [dict(r) for r in rows]
+    items.sort(
+        key=lambda m: (
+            _KIND_RANK.get(str(m.get("kind")), 99),
+            str(m.get("canonical_name") or ""),
+        )
+    )
+    return items
+
 
 def resolve_name(conn: sqlite3.Connection, text: str) -> list[dict]:
     q = text.strip()
@@ -15,12 +38,11 @@ def resolve_name(conn: sqlite3.Connection, text: str) -> list[dict]:
         FROM aliases a
         JOIN entities e ON e.id = a.entity_id
         WHERE a.alias = ? COLLATE NOCASE
-        ORDER BY e.kind, e.canonical_name
         """,
         (q,),
     ).fetchall()
     if rows:
-        return [dict(r) for r in rows]
+        return _rank_rows(rows)
 
     rows = conn.execute(
         """
@@ -28,12 +50,11 @@ def resolve_name(conn: sqlite3.Connection, text: str) -> list[dict]:
                e.canonical_name AS matched_alias, 'en' AS matched_lang
         FROM entities e
         WHERE e.canonical_name = ? COLLATE NOCASE
-        ORDER BY e.kind, e.canonical_name
         """,
         (q,),
     ).fetchall()
     if rows:
-        return [dict(r) for r in rows]
+        return _rank_rows(rows)
 
     like = f"%{q}%"
     rows = conn.execute(
@@ -43,13 +64,12 @@ def resolve_name(conn: sqlite3.Connection, text: str) -> list[dict]:
         FROM aliases a
         JOIN entities e ON e.id = a.entity_id
         WHERE a.alias LIKE ? COLLATE NOCASE
-        ORDER BY e.kind, e.canonical_name
-        LIMIT 25
+        LIMIT 50
         """,
         (like,),
     ).fetchall()
     if rows:
-        return [dict(r) for r in rows]
+        return _rank_rows(rows)[:25]
 
     rows = conn.execute(
         """
@@ -57,9 +77,8 @@ def resolve_name(conn: sqlite3.Connection, text: str) -> list[dict]:
                e.canonical_name AS matched_alias, 'en' AS matched_lang
         FROM entities e
         WHERE e.canonical_name LIKE ? COLLATE NOCASE
-        ORDER BY e.kind, e.canonical_name
-        LIMIT 25
+        LIMIT 50
         """,
         (like,),
     ).fetchall()
-    return [dict(r) for r in rows]
+    return _rank_rows(rows)[:25]

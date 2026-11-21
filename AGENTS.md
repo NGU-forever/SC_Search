@@ -22,7 +22,9 @@
 * **本地知识库 MCP（优先）**：
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**：`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
   * 库未覆盖或需交互计算时（Erkul 配装、采矿计算站、Spectrum、CitizenWiki 需浏览器时）再开网页；不要编造库中没有的数据。
-  * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`。
+  * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`（汉化组译名）。
+  * 中文提问先 `sc_resolve_name`：标准译名来自汉化组 ini，俗称来自 seed；再查物价/事实/文档。
+
 
 ---
 

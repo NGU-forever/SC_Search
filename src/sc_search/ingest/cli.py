@@ -122,6 +122,21 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 raise
             return _sync_result("aliases", rows, path)
 
+        if args.source == "zh":
+            from sc_search.ingest.adapters.localization import LocalizationError, sync_localization
+
+            try:
+                rows = sync_localization(conn)
+                conn.commit()
+            except LocalizationError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            return _sync_result("zh", rows, path)
+
         print(json.dumps({"ok": False, "error": f"unknown source: {args.source}"}, ensure_ascii=False))
         return 1
     finally:
@@ -141,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="Sync a data source into SQLite")
     p_sync.add_argument(
         "source",
-        choices=["uex", "scmdb", "scw", "wiki", "aliases"],
+        choices=["uex", "scmdb", "scw", "wiki", "aliases", "zh"],
         help="Source adapter name",
     )
     p_sync.add_argument(

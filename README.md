@@ -63,8 +63,10 @@ python -m sc_search.ingest sync uex                 # 物价（需 Token）
 python -m sc_search.ingest sync scmdb --channel live  # 任务 / 蓝图奖励
 python -m sc_search.ingest sync scw                 # 飞船参数
 python -m sc_search.ingest sync wiki                # 英文 Wiki 摘要
-python -m sc_search.ingest sync aliases             # 中文俗称（大白鲨等）
+python -m sc_search.ingest sync aliases             # 民间俗称（大白鲨等）
+python -m sc_search.ingest sync zh                  # 汉化组标准中文译名（global.ini）
 ```
+
 
 查看同步是否成功：
 
@@ -125,7 +127,9 @@ python -m sc_search.ingest sync scmdb --channel live
 python -m sc_search.ingest sync scw
 python -m sc_search.ingest sync wiki
 python -m sc_search.ingest sync aliases
+python -m sc_search.ingest sync zh
 ```
+
 
 MCP **不会**自动改库，避免误触发大流量下载；同步请在终端手动执行。
 
@@ -139,14 +143,16 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 - 任务赏金、蓝图奖励池、部分物品奖励（SCMDB）
 - 飞船参数与中英描述片段（Star Citizen Wiki API）
 - Wiki 英文摘要全文检索
-- 常见中文俗称（如大白鲨 → Carrack；可继续往 `data/seed_aliases.json` 加）
+- 汉化组标准中文译名（如 克拉克 → Carrack；来自 [汉化组 global.ini](https://citizenwiki.cn/Localization)，CC BY-NC-SA 4.0，仅个人非商用）
+- 民间俗称（如大白鲨 → Carrack；维护在 `data/seed_aliases.json`）
 
 **仍建议开网页 / 游戏内确认的：**
 
 - Erkul 精细配装与 DPS
 - 采矿阻力、激光头计算（Regolith 等）
 - Spectrum 论坛、需登录的官方内容
-- 中文维基全文（`citizenwiki.cn` 对自动程序常有 Cloudflare 拦截，目前主要靠本地俗称表）
+- 中文维基长文（`citizenwiki.cn` 对自动程序常有 Cloudflare 拦截；标准译名已用汉化组 ini 覆盖）
+
 
 回答里若带了 `game_version` / 同步时间，请以那一行判断数据新不新。UEX 返回的版本号有时会偏旧，以同步时间和实机为准。
 
