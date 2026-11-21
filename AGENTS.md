@@ -31,7 +31,7 @@
     2. **检索**：只调 `sc-search` 白名单工具取证据；简单事实/物价可用 `sc_answer` 快路径；声望/任务列表用 `sc_resolve_name` + `sc_list_missions`（若可用）+ `sc_entity_facts`。
     3. **成文**：只依据 MCP 证据组织中文；库无声望点数/效率则明说，不编造。
   * **默认入口（简化）**：单实体静态参数/物价 → `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先理解槽位再按上表检索。
-  * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
+  * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
   * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
 

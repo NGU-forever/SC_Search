@@ -120,6 +120,7 @@ Windows 注意：`command` 一般写成
 | 「Lorville 都卖什么价？」 | `sc_terminal_prices` |
 | 「大白鲨是哪艘船？」 | `sc_resolve_name` |
 | 「Carrack 载货 / 厂家？」 | `sc_entity_facts` |
+| 「红风 Junior 能接什么任务？」 | `sc_list_missions` |
 | 「Carrack 是什么船？」 | `sc_search_docs` |
 | 「数据是什么时候同步的？」 | `sc_data_freshness` |
 

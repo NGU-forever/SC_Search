@@ -12,6 +12,7 @@ from sc_search.ingest.normalize import (
     upsert_entity,
     upsert_fact,
 )
+from tests.test_missions import _seed_missions
 from sc_search.mcp_server import server as mcp_server
 
 
@@ -80,3 +81,23 @@ def test_mcp_handlers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ans["ok"] is True
     assert ans["data"]["browser"]["needed"] is False
     assert ans["data"]["answer_draft"]
+
+
+def test_mcp_sc_list_missions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = tmp_path / "missions.sqlite"
+    conn = connect(db)
+    init_db(conn)
+    _seed_missions(conn)
+    conn.close()
+    monkeypatch.setenv("SC_SEARCH_DB", str(db))
+
+    raw = json.loads(
+        mcp_server.handlers["sc_list_missions"](
+            faction="Red Wind Linehaul",
+            rank_keyword="Junior",
+            limit=5,
+        )
+    )
+    assert raw["ok"] is True
+    assert len(raw["data"]) >= 2
+    assert all("Red Wind" in (r.get("contractor") or "") for r in raw["data"])

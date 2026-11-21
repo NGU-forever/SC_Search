@@ -14,6 +14,7 @@ from sc_search.query.freshness import data_freshness, live_game_version
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.plan import query_plan
 from sc_search.query.resolve import resolve_name
+from sc_search.query.missions import list_missions
 from sc_search.query.search import search_docs
 
 mcp = MCPServer("sc-search")
@@ -164,6 +165,38 @@ def sc_answer(
 
 
 @mcp.tool()
+def sc_list_missions(
+    faction: str | None = None,
+    rank_keyword: str | None = None,
+    system: str | None = None,
+    limit: int = 10,
+) -> str:
+    """List SCMDB missions filtered by contractor faction, rank keyword in title/name, or system."""
+    try:
+        conn = open_db()
+        try:
+            data = list_missions(
+                conn,
+                faction=faction,
+                rank_keyword=rank_keyword,
+                system=system,
+                limit=limit,
+            )
+            if not data:
+                return _err(
+                    "no missions matched filters"
+                    + (f" faction={faction!r}" if faction else "")
+                    + (f" rank_keyword={rank_keyword!r}" if rank_keyword else "")
+                    + (f" system={system!r}" if system else "")
+                )
+            return _ok(data, _meta_from_rows(data))
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
 def sc_search_docs(query: str, limit: int = 5) -> str:
     """Full-text search Star Citizen wiki extracts stored locally (FTS5)."""
     try:
@@ -188,5 +221,6 @@ handlers = {
     "sc_terminal_prices": sc_terminal_prices,
     "sc_data_freshness": sc_data_freshness,
     "sc_entity_facts": sc_entity_facts,
+    "sc_list_missions": sc_list_missions,
     "sc_search_docs": sc_search_docs,
 }
