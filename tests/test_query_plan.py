@@ -229,3 +229,41 @@ def test_fs9_nali_mai_prefers_base_blueprint(conn):
     p = query_plan(conn, "FS-9轻机枪哪里买？")
     assert p["entities"][0]["kind"] == "blueprint"
     assert p["entities"][0]["canonical_name"] == "FS-9 LMG"
+
+
+def test_earn_meta_guide_browser_resources(conn):
+    p = query_plan(conn, "新手怎么赚钱？")
+    assert p["intent"] == "earn_meta"
+    assert p["path"] == "mcp_then_browser"
+    assert p["browser"]["needed"] is True
+    assert p["browser"].get("wait_confirm") is True
+    assert p["browser"]["resources"]
+    assert p["browser"]["start_url"].startswith("http")
+
+
+def test_client_help_intent(conn):
+    p = query_plan(conn, "进不去游戏报错19000怎么办")
+    assert p["intent"] == "client_help"
+    assert p["browser"]["resources"]
+
+
+def test_howto_intent(conn):
+    p = query_plan(conn, "罗威尔怎么走到空港叫船")
+    assert p["intent"] == "howto"
+
+
+def test_mission_list_not_swallowed_by_earn_meta(conn):
+    fac = upsert_entity(
+        conn, kind="faction", canonical_name="Red Wind Linehaul", game_version="4.10.3"
+    )
+    upsert_alias(conn, fac, "红风物流", "zh", "seed")
+    conn.commit()
+    p = query_plan(conn, "红风物流有哪些任务？")
+    assert p["intent"] == "mission_list"
+
+
+def test_loadout_still_erkul(conn):
+    p = query_plan(conn, "卡拉克怎么配打炮")
+    assert p["intent"] == "loadout_calc"
+    assert p["browser"]["site"] == "erkul"
+    assert p["browser"].get("resources")

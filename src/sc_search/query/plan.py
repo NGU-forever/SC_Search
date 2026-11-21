@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
+from sc_search.query.guides import browser_guide, guides_for
 from sc_search.query.resolve import _KIND_RANK, _rank_rows, resolve_name
 
 ERKUL_CALCULATOR = "https://erkul.games/calculator"
@@ -23,6 +24,40 @@ _PRICES_RE = re.compile(
 )
 _MISSION_LIST_RE = re.compile(
     r"(有哪些任务|哪些任务|任务列表|什么任务|刷什么任务|任务有哪些)",
+    re.I,
+)
+_CLIENT_RE = re.compile(
+    r"(报错|进不去|打不开|锁服|汉化|虚拟内存|鼠标失灵|19000|32212|"
+    r"删\s*user|角色重置|reset\b|ptu怎么进|eptu|启动器)",
+    re.I,
+)
+_HOWTO_RE = re.compile(
+    r"(怎么走|如何走|叫船|机库|床上?登出|按键|键位|跃迁怎么|量子怎么|"
+    r"怎么起飞|怎么降落|对接|找路|路线|操作教程|新手教程|"
+    r"怎么上(我的)?飞?船|复活点|出生点)",
+    re.I,
+)
+_EARN_META_RE = re.compile(
+    r"(怎么赚钱|如何赚钱|怎么刷钱|开荒|萌新(该|要)?干什么|新手(该|要)?干什么|"
+    r"第一桶金|赚钱方法|推荐玩法|怎么玩)",
+    re.I,
+)
+_PLEDGE_RE = re.compile(
+    r"(ccu|warbond|\bwb\b|融船|信用点|store\s*credit|叠叠乐|退款|灰市|"
+    r"star\s*hangar|资格包|新手包|邀请码|lti)",
+    re.I,
+)
+_EVENT_RE = re.compile(
+    r"(890\s*登舰|奥里森之围|海盗潮|iae|free\s*fly|免费试飞|活动怎么|"
+    r"北极星兑换|巴努商店)",
+    re.I,
+)
+_TRADE_ROUTE_RE = re.compile(
+    r"(跑商航线|贸易航线|推荐航线|整条线|最优路线)",
+    re.I,
+)
+_SHIP_SHOP_RE = re.compile(
+    r"(哪里租船|租船|购点|游戏里哪里买船|船店|new\s*deal)",
     re.I,
 )
 _LIVE_RE = re.compile(
@@ -347,27 +382,80 @@ def _browser_off() -> dict:
     return {"needed": False}
 
 
+def _dedupe_resources(rows: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in rows:
+        url = str(r.get("url") or "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append(r)
+    return out
+
+
 def _browser_erkul(search_term: str) -> dict:
+    resources = _dedupe_resources(
+        [
+            {"title": "Erkul Calculator", "url": ERKUL_CALCULATOR, "kind": "tool"},
+            *guides_for("loadout", limit=3),
+        ]
+    )
     return {
         "needed": True,
         "site": "erkul",
         "start_url": ERKUL_CALCULATOR,
         "search_term": search_term,
+        "resources": resources,
         "max_actions": 8,
         "extract": ["selected ship", "DPS summary", "shield / power notes"],
         "do_not": ["open /auth", "/settings", "wander other sites first"],
+        "wait_confirm": True,
     }
 
 
 def _browser_mining(search_term: str) -> dict:
+    resources = _dedupe_resources(
+        [
+            {"title": "Regolith", "url": REGOLITH, "kind": "tool"},
+            *guides_for("mining", limit=3),
+        ]
+    )
     return {
         "needed": True,
         "site": "regolith",
         "start_url": REGOLITH,
         "search_term": search_term,
+        "resources": resources,
         "max_actions": 8,
         "extract": ["laser / module setup", "instability / resistance notes"],
         "do_not": ["open /auth", "/settings", "wander other sites first"],
+        "wait_confirm": True,
+    }
+
+
+def _guide_plan(
+    *,
+    intent: str,
+    category: str,
+    entities: list[dict],
+    resolve_text: str,
+    reason: str,
+    mcp_steps: list[dict] | None = None,
+) -> dict:
+    steps = list(mcp_steps or [])
+    if resolve_text and not any(s.get("tool") == "sc_resolve_name" for s in steps):
+        steps.insert(0, {"tool": "sc_resolve_name", "args": {"text": resolve_text}})
+    return {
+        "intent": intent,
+        "path": "mcp_then_browser",
+        "confidence": "medium",
+        "entities": entities,
+        "mcp_steps": steps,
+        "browser": browser_guide(category),
+        "stop_if": "Agent 可用本地证据+推理成文；仅当用户确认或要逐步核对时再开浏览器",
+        "reason": reason,
+        "guide_category": category,
     }
 
 
@@ -466,6 +554,69 @@ def query_plan(
             "stop_if": "有报价则不要开浏览器",
             "reason": "物价走本地 UEX 快照",
         }
+
+    # Guide-style intents: local evidence + curated links; LLM reasons; browser on confirm.
+    if _CLIENT_RE.search(q):
+        return _guide_plan(
+            intent="client_help",
+            category="client",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="客户端/报错/汉化需教程外链；本地不编造排障步骤",
+        )
+    if _PLEDGE_RE.search(q):
+        return _guide_plan(
+            intent="pledge_meta",
+            category="pledge",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="氪金/CCU/退款名词需官方与社区指南；库无账单数据",
+        )
+    if _EVENT_RE.search(q):
+        return _guide_plan(
+            intent="event_guide",
+            category="event",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="活动本/试飞时效强，给外链供 Agent 推理引用",
+        )
+    if _SHIP_SHOP_RE.search(q):
+        steps = []
+        if primary:
+            steps.append({"tool": "sc_entity_facts", "args": {"name_or_id": primary}})
+        return _guide_plan(
+            intent="ship_shop",
+            category="ship_shop",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="船店/租借购点以 Everark 等外链为准；本地可附静态参数",
+            mcp_steps=steps,
+        )
+    if _TRADE_ROUTE_RE.search(q):
+        return _guide_plan(
+            intent="trade_route",
+            category="trade_route",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="整条跑商航线需规划站；可辅以本地单价",
+        )
+    if _EARN_META_RE.search(q) and not _faction_primary(entities):
+        return _guide_plan(
+            intent="earn_meta",
+            category="earn_meta",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="赚钱开荒需推理组织玩法；附任务/Wiki 外链，不编造时薪",
+            mcp_steps=[{"tool": "sc_list_missions", "args": {"limit": 5}}],
+        )
+    if _HOWTO_RE.search(q):
+        return _guide_plan(
+            intent="howto",
+            category="howto",
+            entities=entities,
+            resolve_text=resolve_text,
+            reason="操作/找路教程类；本地证据+外链供 LLM 成文",
+        )
 
     if _LIVE_RE.search(q):
         return {

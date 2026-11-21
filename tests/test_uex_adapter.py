@@ -50,6 +50,10 @@ class FakeTransport(httpx.BaseTransport):
             return httpx.Response(200, json={"status": "ok", "data": COMMODITIES})
         if path.endswith("/commodities_prices_all"):
             return httpx.Response(200, json={"status": "ok", "data": PRICES})
+        if path.endswith("/vehicles_purchases_prices_all"):
+            return httpx.Response(200, json={"status": "ok", "data": []})
+        if path.endswith("/vehicles"):
+            return httpx.Response(200, json={"status": "ok", "data": []})
         return httpx.Response(404, json={"status": "error", "message": path})
 
 

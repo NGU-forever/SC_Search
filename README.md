@@ -74,7 +74,7 @@ chmod +x scripts/sync_all.sh
 
 ```bash
 python -m sc_search.ingest init
-python -m sc_search.ingest sync uex                 # 物价（需 Token）
+python -m sc_search.ingest sync uex                 # 跑商物价 + 飞船游戏内购价（需 Token）
 python -m sc_search.ingest sync scmdb --channel live  # 任务 / 蓝图奖励
 python -m sc_search.ingest sync scw                 # 飞船参数
 python -m sc_search.ingest sync wiki                # 英文 Wiki 摘要
@@ -151,6 +151,7 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 **本地库比较擅长：**
 
 - 货物买卖价、终端报价（来自 UEX，社区众包，可能有误差）
+- 飞船游戏内购点与 aUEC（同属 `sync uex`：UEX `vehicles_purchases_prices_all`）
 - 任务赏金、蓝图奖励池、部分物品奖励（SCMDB）
 - 飞船参数与中英描述片段（Star Citizen Wiki API）
 - Wiki 英文摘要全文检索
@@ -172,7 +173,7 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 ## 常见问题
 
 **Q：没有 UEX Token 能用吗？**  
-能。跳过 `sync uex`，任务、飞船、Wiki、俗称照样可用；只是没有跑商物价。
+能。跳过 `sync uex`，任务、飞船参数、Wiki、俗称照样可用；只是没有跑商物价和飞船游戏内 aUEC 购点。
 
 **Q：Token 安全吗？**  
 放在 `config/.env`，已被 git 忽略，不要发到聊天或公开仓库。

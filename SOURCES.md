@@ -33,7 +33,11 @@
 | **CitizenWiki (中文维基)** | `citizenwiki.cn` | 官方/汉化组维护的标准中文名词库、中英文对照、本地化词条与指南 |
 | **星际公民中文Wiki（灰机）** | `https://xjgm.huijiwiki.com/wiki/飞船列表` | 中文飞船译名对照表（别名 seed 扩充参考）；记录于 2026-11-22 |
 | **巴哈姆特 SC 哈啦板** | `https://forum.gamer.com.tw/B.php?bsn=23291` | 繁中社区新手 FAQ / 实操提问源；记录于 2026-11-22 |
-| **Everark 信息站** | `https://everark-sc.com/zh-CN/missions` | 中文任务合约清单与声望参考；记录于 2026-11-22 |
+| **Everark 信息站** | `https://everark-sc.com/zh-CN/missions` · `https://everark-sc.com/zh-CN/ships` | 中文任务合约、船只 aUEC/租借/官网价；记录于 2026-11-22 |
+| **百度贴吧·星际公民吧** | `https://tieba.baidu.com/f?kw=星际公民` | 简中玩家即时提问（赚钱、报错、物价）；记录于 2026-11-22 |
+| **Bilibili 星际公民** | `https://search.bilibili.com/all?keyword=星际公民` | 简中视频教程/FAQ 主阵地（新手合集、报错、玩法）；记录于 2026-11-22 |
+| **Star Netrunners 入门指南** | `https://star-netrunners.gitbook.io/star-citizen-beginners-guide/` | 繁中结构化新手/船/Crafting 指南；记录于 2026-11-22 |
+| **FleetYards** | `https://fleetyards.net/` | 机库晒船与船队清单；巴哈 FAQ 常用外链；记录于 2026-11-22 |
 | **Roberts Space Industries (RSI)** | `robertsspaceindustries.com` | 官方新闻、Patch Notes（补丁说明）、Comm-Link、Spectrum 论坛 |
 | **SC Focus** | `scfocus.org` | 飞船对比、版本改动摘要与入门指南 |
 | **CStone Item Finder** | `finder.cstone.space` | 游戏内物品/装备/武器商店分布速查 |

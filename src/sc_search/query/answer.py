@@ -18,6 +18,28 @@ _OBTAIN_RE = re.compile(
     re.I,
 )
 _CRAFT_MATERIALS_RE = re.compile(r"(材料|配方|制造|制作|crafting)", re.I)
+_GUIDE_INTENTS = frozenset(
+    {
+        "howto",
+        "client_help",
+        "earn_meta",
+        "pledge_meta",
+        "event_guide",
+        "trade_route",
+        "ship_shop",
+    }
+)
+_OPEN_GUIDE_CONFIRM = "要用浏览器打开推荐教程吗？"
+
+_GUIDE_REASONING = {
+    "howto": "操作/找路类：用外链与常识按步骤讲清，勿编造当前补丁独有 UI 细节。",
+    "client_help": "客户端/报错：先列常见排查方向（USER/Reset/换区），具体错误码以教程为准。",
+    "earn_meta": "赚钱开荒：按玩法类型组织建议；可用任务样例推理，勿编造时薪/最优线。",
+    "pledge_meta": "氪金名词：解释 CCU/WB/信用点/退款概念，金额与活动以官网为准。",
+    "event_guide": "活动本：说明玩法框架与风险，逐步流程引用外链，勿编造刷新点。",
+    "trade_route": "跑商航线：可结合本地单价推理；整条最优线指向规划站。",
+    "ship_shop": "船店/租借：本地给静态参数；购点/租金指向 Everark 等外链。",
+}
 
 _PLACEHOLDER_VERSIONS = frozenset(
     {"scw-live", "wiki-live", "aliases", "localization-full", "unknown"}
@@ -140,6 +162,124 @@ def _draft_shop_unknown(label: str, live: str, src_ver: str | None = None) -> st
     )
 
 
+def _acquisition_shop_yes(*, shops: list[dict], hint_zh: str | None = None) -> dict:
+    return {
+        "mode": "shop_buy",
+        "shop_buyable": "yes",
+        "pool": None,
+        "hint_zh": hint_zh or "本地有游戏内商店/aUEC 报价",
+        "missions": [],
+        "materials": [],
+        "shops": list(shops),
+        "missing": [],
+    }
+
+
+def _ship_buy_prices(conn: sqlite3.Connection, entity_id: int, *, limit: int = 8) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT
+          c.canonical_name AS commodity,
+          t.canonical_name AS terminal,
+          p.side,
+          p.price,
+          p.scu_available,
+          p.reported_at,
+          p.source,
+          p.game_version
+        FROM prices p
+        JOIN entities c ON c.id = p.commodity_entity_id
+        JOIN entities t ON t.id = p.terminal_entity_id
+        WHERE p.commodity_entity_id = ?
+          AND p.side = 'buy'
+          AND p.price > 0
+        ORDER BY p.price ASC, t.canonical_name ASC
+        LIMIT ?
+        """,
+        (entity_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+_DEEP_ORGANIZE_HINT = (
+    "有本地证据时：结合 answer_draft 与 evidence 做深度整理，"
+    "写成更详细的玩家可读说明（结论、分点/小表、版本来源、操作含义）；"
+    "数值与店名等只能来自证据，勿编造未收录字段。"
+)
+# Back-compat alias used by hard-fact drafts
+_HARD_FACT_REASONING = _DEEP_ORGANIZE_HINT
+
+
+def _draft_ship_shop(label: str, rows: list[dict], live: str) -> str:
+    if not rows:
+        return _draft_shop_unknown(label, live)
+    bits = []
+    src_ver = None
+    for r in rows[:5]:
+        term = r.get("terminal") or "?"
+        price = r.get("price")
+        try:
+            price_s = f"{int(price):,}" if price is not None else "?"
+        except (TypeError, ValueError):
+            price_s = str(price)
+        bits.append(f"{term} 约 {price_s} aUEC")
+        if src_ver is None:
+            src_ver = r.get("game_version")
+    return (
+        f"【供 Agent 深度整理】{_DEEP_ORGANIZE_HINT}\n"
+        f"{label} 游戏内可购："
+        + "；".join(bits)
+        + f"{_draft_live_suffix(live, src_ver)}。"
+    )
+
+
+def _format_guide_links(resources: list[dict], *, limit: int = 4) -> str:
+    lines: list[str] = []
+    for r in resources[:limit]:
+        title = r.get("title") or "链接"
+        url = r.get("url") or ""
+        if url:
+            lines.append(f"- {title}：{url}")
+    return "\n".join(lines)
+
+
+def _draft_guide(
+    intent: str,
+    *,
+    label: str,
+    live: str,
+    resources: list[dict],
+    mission_bits: list[str] | None = None,
+    static_bit: str | None = None,
+) -> str:
+    hint = _GUIDE_REASONING.get(intent, "结合本地证据与外链推理作答，勿编造库外数值。")
+    chunks: list[str] = [f"【供 Agent 深度整理】{hint}"]
+    if label:
+        chunks.append(f"相关实体：{label}。")
+    if static_bit:
+        chunks.append(static_bit)
+    if mission_bits:
+        chunks.append("本地任务样例：" + "；".join(mission_bits[:4]) + "。")
+    if intent == "earn_meta":
+        chunks.append(
+            "常见开荒方向（需结合版本）：货运/快递熟悉操作 → 低危赏金 → "
+            "采矿或大宗货运；收益随补丁波动，以下外链供核对。"
+        )
+    elif intent == "client_help":
+        chunks.append(
+            "常见排查方向：删 USER、换服务器区域、启动器重登、官网页角色 Reset；"
+            "具体报错以教程为准。"
+        )
+    elif intent == "ship_shop":
+        chunks.append("本地若无 aUEC 店价，请用下方购点表核对；静态船参数可继续追问。")
+    link_block = _format_guide_links(resources)
+    if link_block:
+        chunks.append("参考外链（引用，勿当作库内事实数值）：\n" + link_block)
+    if live:
+        chunks.append(f"版本参考 Live {live}。")
+    return "\n".join(chunks)
+
+
 def _recipe_materials(conn: sqlite3.Connection, blueprint_entity_id: int) -> list[dict]:
     rows = conn.execute(
         """
@@ -249,46 +389,55 @@ def _format_material_line(m: dict) -> str:
     return f"{name} {qty}{(' ' + unit) if unit else ''}".strip()
 
 
-def _draft_blueprint_unknown(
+_BLUEPRINT_REASONING = (
+    "蓝图获取/制造：按 evidence.acquisition 组织成文；"
+    "shop_buyable=unknown 时说明无商店报价、勿断言绝对买不到；"
+    "有 missions/materials 则引用；刷点/掉率/矿点库无则明说，勿编造。"
+)
+
+
+def _draft_blueprint_scaffold(
     label: str,
     pool: str | None,
     live: str,
-    src_ver: str | None,
     *,
     missions: list[dict] | None = None,
     materials: list[dict] | None = None,
     wants_materials: bool = False,
     missing: list[str] | None = None,
 ) -> str:
-    pool_bit = f"（池：{pool}）" if pool else ""
-    parts = [
-        f"{label} 本地仅见蓝图/任务奖励记录{pool_bit}，未找到商店报价；"
-        f"不能据此断言绝对买不到"
-    ]
+    """Evidence pack + short hint; Agent does the readable write-up."""
+    chunks: list[str] = [f"【供 Agent 深度整理】{_BLUEPRINT_REASONING}"]
+    if label:
+        chunks.append(f"实体：{label}。")
+    chunks.append("商店报价：本地未找到（shop_buyable=unknown）。")
+    if pool:
+        chunks.append(f"奖励池：{pool}。")
     missions = missions or []
     if missions:
-        m = missions[0]
-        title = m.get("title") or m.get("canonical_name")
-        meta = []
-        if m.get("contractor"):
-            meta.append(str(m["contractor"]))
-        if m.get("system"):
-            meta.append(str(m["system"]))
-        meta_bit = f"（{'，'.join(meta)}）" if meta else ""
-        parts.append(f"任务线索：{title}{meta_bit}")
+        bits: list[str] = []
+        for m in missions[:5]:
+            title = m.get("title") or m.get("canonical_name")
+            meta = []
+            if m.get("contractor"):
+                meta.append(str(m["contractor"]))
+            if m.get("system"):
+                meta.append(str(m["system"]))
+            meta_bit = f"（{'，'.join(meta)}）" if meta else ""
+            bits.append(f"{title}{meta_bit}")
+        chunks.append("任务线索：" + "；".join(bits) + "。")
     materials = materials or []
     if materials:
         joined = "、".join(_format_material_line(x) for x in materials)
-        has_resource = any(
-            str(x.get("ingredient_kind") or "") == "resource" for x in materials
-        )
-        how = "资源类需采矿/精炼获取（具体矿点库未收录）" if has_resource else "按配方筹备材料"
-        parts.append(f"制造材料：{joined}；{how}")
+        chunks.append(f"制造材料：{joined}。")
+        if any(str(x.get("ingredient_kind") or "") == "resource" for x in materials):
+            chunks.append("资源类刷点/矿点：库未收录。")
     miss = set(missing or [])
     if wants_materials and "crafting_recipe" in miss:
-        parts.append("库未收录制造配方/材料来源，不能编造")
-    return "；".join(parts) + f"{_draft_live_suffix(live, src_ver)}。"
-
+        chunks.append("库无制造配方/材料来源。")
+    if live:
+        chunks.append(f"版本参考 Live {live}。")
+    return "\n".join(chunks)
 
 def _display_name(entities: list[dict]) -> str:
     if not entities:
@@ -407,6 +556,9 @@ def _recompute_confidence(
         return "high" if prices else "low"
     if intent == "mission_list":
         return "high" if not missing else "low"
+    if intent in _GUIDE_INTENTS:
+        # Guides rely on LLM reasoning + citations; medium unless empty of everything.
+        return "medium" if has_entity or not missing else "low"
     if intent == "docs":
         return "medium" if docs else "low"
     if intent in {"loadout_calc", "mining_calc"}:
@@ -525,17 +677,16 @@ def answer_question(
                 }
             )
         evidence["relations"] = rels
-        src_ver = entity_row.get("game_version")
+        evidence["reasoning_hint"] = _BLUEPRINT_REASONING
         return {
             "intent": intent,
             "path": plan["path"],
             "confidence": "high",
             "live_game_version": live,
-            "answer_draft": _draft_blueprint_unknown(
+            "answer_draft": _draft_blueprint_scaffold(
                 label or primary,
                 pool,
                 live,
-                src_ver,
                 missions=missions,
                 materials=materials,
                 wants_materials=wants_materials,
@@ -557,6 +708,43 @@ def answer_question(
         bundle = entity_facts(conn, primary) or {}
         entity_row = bundle.get("entity") or {}
         src_ver = entity_row.get("game_version")
+        buy_rows: list[dict] = []
+        if primary_kind == "ship":
+            seen_terms: set[str] = set()
+            for ent in evidence["entities"]:
+                if ent.get("kind") != "ship" or ent.get("id") is None:
+                    continue
+                for row in _ship_buy_prices(conn, int(ent["id"]), limit=price_limit):
+                    term = str(row.get("terminal") or "")
+                    if term in seen_terms:
+                        continue
+                    seen_terms.add(term)
+                    buy_rows.append(row)
+                if len(buy_rows) >= price_limit:
+                    break
+            buy_rows = sorted(
+                buy_rows, key=lambda r: (float(r.get("price") or 0), str(r.get("terminal") or ""))
+            )[:price_limit]
+        evidence["facts"] = [
+            _slim_fact(f) for f in (bundle.get("facts") or [])[:fact_limit]
+        ]
+        if buy_rows:
+            evidence["prices"] = _slim_prices(buy_rows)
+            evidence["acquisition"] = _acquisition_shop_yes(shops=_slim_prices(buy_rows))
+            evidence["missing"] = []
+            evidence["reasoning_hint"] = _HARD_FACT_REASONING
+            return {
+                "intent": intent,
+                "path": plan["path"],
+                "confidence": "high",
+                "live_game_version": live,
+                "answer_draft": _draft_ship_shop(label or primary, buy_rows, live),
+                "evidence": evidence,
+                "detail_available": bool(evidence["facts"]),
+                "follow_ups": [],
+                "browser": {"needed": False},
+                "plan": plan,
+            }
         evidence["acquisition"] = _acquisition_unknown(
             None,
             mode="shop_unknown",
@@ -564,9 +752,6 @@ def answer_question(
             missing=["shop_prices"],
         )
         evidence["missing"] = ["shop_prices"]
-        evidence["facts"] = [
-            _slim_fact(f) for f in (bundle.get("facts") or [])[:fact_limit]
-        ]
         return {
             "intent": intent,
             "path": plan["path"],
@@ -645,6 +830,68 @@ def answer_question(
             "plan": plan,
         }
 
+    if intent in _GUIDE_INTENTS:
+        browser = dict(plan.get("browser") or {})
+        resources = list(browser.get("resources") or [])
+        evidence["guides"] = resources
+        evidence["reasoning_hint"] = _GUIDE_REASONING.get(intent, "")
+        mission_bits: list[str] = []
+        static_bit = None
+        if intent == "earn_meta":
+            rows = list_missions(conn, limit=5)
+            evidence["missions"] = [
+                {
+                    "canonical_name": r.get("canonical_name"),
+                    "title": r.get("title"),
+                    "reward_uec": r.get("reward_uec"),
+                    "systems": r.get("systems"),
+                    "mission_type": r.get("mission_type"),
+                    "contractor": r.get("contractor"),
+                }
+                for r in rows
+            ]
+            for r in rows[:4]:
+                title = r.get("title") or r.get("canonical_name")
+                mtype = r.get("mission_type")
+                reward = r.get("reward_uec")
+                bit = str(title)
+                if mtype:
+                    bit += f"[{mtype}]"
+                if reward is not None:
+                    bit += f"~{int(reward)}aUEC"
+                mission_bits.append(bit)
+        if intent == "ship_shop" and primary:
+            bundle = entity_facts(conn, primary) or {}
+            facts = bundle.get("facts") or []
+            cargo = next((f for f in facts if f.get("key") in ("cargo_scu", "cargo_capacity")), None)
+            if cargo:
+                static_bit = f"静态参考：货舱 {_fact_value(_slim_fact(cargo))}。"
+                evidence["facts"] = [_slim_fact(cargo)]
+        if not resources:
+            missing.append("guides")
+        draft = _draft_guide(
+            intent,
+            label=label or primary,
+            live=live,
+            resources=resources,
+            mission_bits=mission_bits or None,
+            static_bit=static_bit,
+        )
+        follow_ups = [_OPEN_GUIDE_CONFIRM]
+        evidence["missing"] = missing
+        return {
+            "intent": intent,
+            "path": plan["path"],
+            "confidence": "medium",
+            "live_game_version": live,
+            "answer_draft": draft,
+            "evidence": evidence,
+            "detail_available": bool(resources or mission_bits),
+            "follow_ups": follow_ups,
+            "browser": browser,
+            "plan": plan,
+        }
+
     if intent in {"facts", "loadout_calc", "mining_calc"} and primary:
         bundle = entity_facts(conn, primary)
         if bundle:
@@ -661,17 +908,19 @@ def answer_question(
             src_ver = (bundle.get("entity") or {}).get("game_version")
             if intent == "facts":
                 if had_scored_hit and picked:
+                    evidence["reasoning_hint"] = _HARD_FACT_REASONING
                     top = picked[0]
                     key_label = top.get("key_zh") or _label_fact_key(
                         str(top.get("key") or "")
                     )
-                    draft = (
+                    core = (
                         f"{label} 的 {key_label} 为 {_fact_value(top)}"
                         f"{_draft_live_suffix(live, src_ver)}。"
                     )
                     if detail_available:
-                        draft += "需要更细的硬点/部件可以说一声。"
+                        core += "需要更细的硬点/部件可以说一声。"
                         follow_ups = ["展开全部参数", "只要货舱"]
+                    draft = f"【供 Agent 深度整理】{_DEEP_ORGANIZE_HINT}\n{core}"
                 else:
                     draft = f"本地库有 {label}，但未找到匹配字段。"
                     missing.append("matching_facts")
@@ -680,12 +929,19 @@ def answer_question(
                 static = ""
                 if picked:
                     static = f"静态参考：{picked[0].get('key')}={_fact_value(picked[0])}。"
+                guide_links = _format_guide_links(
+                    list((plan.get("browser") or {}).get("resources") or []),
+                    limit=3,
+                )
                 draft = (
                     f"{label} 配装/计算需 {site}。"
                     f"{static}"
-                    "本地只能给静态参数；要 DPS/配装结果再说，我再按指引开工具站。"
+                    "本地只能给静态参数；Agent 可先据静态参数推理建议，"
+                    "要精确 DPS/破矿模拟再说，确认后打开工具站。"
                 )
-                follow_ups = [f"打开 {site} 查配装", "只要静态参数"]
+                if guide_links:
+                    draft += "\n参考：\n" + guide_links
+                follow_ups = [f"打开 {site} 查配装", "只要静态参数", _OPEN_GUIDE_CONFIRM]
                 detail_available = True
         else:
             missing.append("entity_facts")
@@ -718,18 +974,20 @@ def answer_question(
             rows = fetched[:price_limit]
         evidence["prices"] = _slim_prices(rows)
         if rows:
+            evidence["reasoning_hint"] = _HARD_FACT_REASONING
             top = rows[0]
             ver_suffix = _draft_live_suffix(live, top.get("game_version"))
             if terminal_name and commodity_entity is None:
-                draft = (
+                core = (
                     f"{terminal_name} {side} 报价示例：{top.get('commodity')} "
                     f"约 {top.get('price')} aUEC{ver_suffix}。"
                 )
             else:
-                draft = (
+                core = (
                     f"{top.get('commodity')} {side} 较优：{top.get('terminal')} "
                     f"约 {top.get('price')} aUEC{ver_suffix}。"
                 )
+            draft = f"【供 Agent 深度整理】{_DEEP_ORGANIZE_HINT}\n{core}"
             detail_available = prices_remain
             if prices_remain:
                 follow_ups = (

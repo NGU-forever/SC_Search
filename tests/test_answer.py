@@ -293,9 +293,10 @@ def test_blueprint_buy_acquisition_unknown(conn):
         assert acq["shop_buyable"] == "unknown"
         assert acq["mode"] == "blueprint_reward"
         assert acq["pool"] == "BP_REWARDS_FullStrikeOnStationB"
+        assert r["evidence"].get("reasoning_hint")
         draft = r["answer_draft"]
-        assert "蓝图" in draft or "奖励" in draft
-        assert "未找到商店报价" in draft
+        assert "【供 Agent 深度整理】" in draft
+        assert "shop_buyable=unknown" in draft or "商店报价" in draft
         assert "商店不可直接购买" not in draft
         assert r["confidence"] == "high"
         assert r["browser"]["needed"] is False
@@ -321,11 +322,12 @@ def test_cq7_obtain_materials_compiles_mission_and_recipe(conn):
     names = {m["name"] for m in acq["materials"]}
     assert {"Aluminum", "Hephaestanite", "Iron"} <= names
     assert "crafting_recipe" not in acq["missing"]
+    assert "acquisition" in (r["evidence"].get("reasoning_hint") or "")
     draft = r["answer_draft"]
-    assert "蓝图" in draft or "奖励" in draft
+    assert "【供 Agent 深度整理】" in draft
     assert "黑匣子" in draft or "Battaglia" in draft
     assert "Aluminum" in draft and "Iron" in draft
-    assert "采矿" in draft or "材料" in draft
+    assert "矿点" in draft or "材料" in draft
     assert "商店不可直接购买" not in draft
     assert r["evidence"].get("missing") == []
 
@@ -425,6 +427,25 @@ def test_mission_list_red_wind_draft(conn):
     assert r["confidence"] == "high"
     assert "大宗货运" in r["answer_draft"] or "RedWind" in r["answer_draft"]
     assert r["evidence"].get("missions")
+
+
+def test_earn_meta_draft_has_reasoning_and_links(conn):
+    r = answer_question(conn, "萌新怎么赚钱开荒？")
+    assert r["intent"] == "earn_meta"
+    assert r["confidence"] == "medium"
+    assert "推理" in r["answer_draft"] or "开荒" in r["answer_draft"]
+    assert "http" in r["answer_draft"]
+    assert r["evidence"].get("guides")
+    assert r["browser"]["needed"] is True
+    assert r["browser"].get("wait_confirm") is True
+    assert any("浏览器打开推荐教程" in f for f in r["follow_ups"])
+
+
+def test_client_help_draft_links(conn):
+    r = answer_question(conn, "星际公民汉化后进不去怎么办")
+    assert r["intent"] == "client_help"
+    assert r["evidence"].get("guides")
+    assert "http" in r["answer_draft"]
 
 
 def test_quantanium_spelling_falls_back_to_priced_entity(conn):

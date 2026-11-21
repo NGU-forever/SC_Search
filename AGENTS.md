@@ -21,17 +21,22 @@
   * 检索时优先查阅并在可能时使用 [SOURCES.md](file:///Users/xiongtianyu/Desktop/SC_Search/SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
 * **本地知识库 MCP（优先）**：
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**。
-  * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
-  * **置信度**：以 `sc_answer` 顶层 `confidence` 为准（可与嵌套 `plan.confidence` 不同）。`low`（及无命中字段的 `medium`）时勿擅自开浏览器；若 `follow_ups` 含「要用浏览器核实吗？」，等用户确认再开。
-  * **获取通道**：买/价/获取/制造问法若 `evidence.acquisition` 存在，成文须遵循 `shop_buyable`；为 `unknown` 时说明无商店证据与蓝图/池线索，有 `missions` 则写任务线索；`missing` 含 `crafting_recipe` 时明说库无配方/材料、禁止编造。禁止用未出现在证据中的旧店名/标价覆盖（双通道如可买可造武器勿断言「绝对买不到」）。
+  * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc`/`howto`/`client_help`/`earn_meta`/`pledge_meta`/`event_guide`/`trade_route`/`ship_shop` 先给本地证据+推理短答（及 `browser.resources` 外链），仅当用户要精确计算/逐步核对或明确说打开教程时才按返回的 `browser`（`wait_confirm`）打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
+  * **置信度**：以 `sc_answer` 顶层 `confidence` 为准（可与嵌套 `plan.confidence` 不同）。`low`（及无命中字段的 `medium`）时勿擅自开浏览器；若 `follow_ups` 含「要用浏览器核实吗？」或「要用浏览器打开推荐教程吗？」，等用户确认再开。
+  * **一律 LLM 深度整理成文**（有数据时，不区分「硬答/指南」）：
+    * `sc_answer` / 其它 MCP 返回的 `answer_draft`、`evidence`、`reasoning_hint`/`【供 Agent …】`、外链只是**证据包与脚手架**，不是最终唯一答案。
+    * 只要证据非空：Agent 必须结合这些数据做**深度整理**——归纳结论、对照字段、分点/小表、版本与来源、对玩家有用的操作含义与注意点；可引用多条 evidence（价、参数、任务、guides）交叉说明。
+    * **事实边界不变**：数字、店名、任务名、材料等只能来自证据；禁止编造库外店价、掉率、刷新点、时薪、矿点；证据缺失处明确说「本地未收录」。
+    * 禁止只贴链接或原样甩 JSON；指南类同样要整理成可读中文。
+  * **获取通道**：买/价/获取/制造问法若 `evidence.acquisition` 存在，成文须遵循 `shop_buyable`；为 `unknown` 时说明无商店证据与蓝图/池线索，有 `missions`/`materials` 则引用；`missing` 含 `crafting_recipe` 或草稿标明矿点未收录时明说、禁止编造。禁止用未出现在证据中的旧店名/标价覆盖（双通道勿断言「绝对买不到」）。
   * **短码实体**：口语短码（如 `cq7`）整句 `sc_answer` 若未命中，先 `sc_resolve_name(短码)`；蓝图/制造语境优先 `kind=blueprint` 基型（无引号皮肤名），勿被同名前缀皮肤 item/蓝图带偏。俗称 seed：`视差`→Parallax Energy Assault Rifle；`卡拉克`→Carrack。
   * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
   * 不要编造库中没有的数据。
   * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。
   * **理解 → 检索 → 成文（Agent 层）**：
-    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图含：`mission_rep`（任务/声望）、`mission_money`、`trade`、`ship_stats`/`ship_buy`、`blueprint`/`crafting`、`loadout`、`mining`、`bug_tip`、`lore_docs`、`patch_live`、`other`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
+    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图含：`mission_rep`（任务/声望）、`mission_money`、`trade`、`ship_stats`/`ship_buy`、`blueprint`/`crafting`、`loadout`、`mining`、`bug_tip`/`client_help`、`howto`、`earn_meta`、`pledge_meta`、`event_guide`、`lore_docs`、`patch_live`、`other`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
     2. **检索**：只调 `sc-search` 白名单工具取证据；简单事实/物价可用 `sc_answer` 快路径；声望/任务列表用 `sc_resolve_name` + `sc_list_missions`（若可用）+ `sc_entity_facts`。
-    3. **成文**：只依据 MCP 证据组织中文；库无声望点数/效率则明说，不编造。
+    3. **成文**：不论题型，有数据就 LLM 深度整理成玩家可读答案；无数据就说明未收录。脚手架不是终稿；库无字段不编造。
   * **默认入口（简化）**：单实体静态参数/物价 → `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先理解槽位再按上表检索。
   * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync scw_blueprints`｜`sync wiki`｜`sync aliases`｜`sync zh`。
@@ -80,8 +85,8 @@
 
 ## 6. 浏览器交互与自动化规范
 
-* **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算或明确要求核对时开浏览器**；`confidence=high` 本地 `answer_draft` 不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
-* **剧本**：只用返回里的 `start_url`；`search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表 → **关闭标签**。
-* **禁止**：`/auth`、`/settings`；同一题未在 plan/`sc_answer` 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词。
-* **失败降级**：超时或失败时，用已有 MCP facts 或 `sc_answer` 静态草稿答静态部分，并标明「配装/DPS 未取到」。
+* **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算、打开推荐教程或明确要求核对时开浏览器**；先据本地证据 LLM 深度整理成文并列出 `browser.resources`，确认后再开。`confidence=high` 本地命中题不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
+* **剧本**：只用返回里的 `start_url`（或用户点名的 `resources[].url`）；配装 `search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表 → **关闭标签**。
+* **禁止**：`/auth`、`/settings`；同一题未在 plan/`sc_answer` 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词；把 B 站搜索页内容编造为库内数值。
+* **失败降级**：超时或失败时，用已有 MCP facts / guides / `sc_answer` 推理草稿答静态部分，并标明「配装/DPS/教程页未取到」。
 * 需要浏览器自动化时，优先 `ego-browser`（ego lite），但仍须服从上述门禁与剧本。

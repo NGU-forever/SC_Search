@@ -85,13 +85,32 @@ class UexClient:
             raise UexError("commodities_prices_all response was not a list")
         return data
 
+    def fetch_vehicles(self) -> list[dict[str, Any]]:
+        data = self._get("vehicles")
+        if not isinstance(data, list):
+            raise UexError("vehicles response was not a list")
+        return data
+
+    def fetch_vehicles_purchases_prices_all(self) -> list[dict[str, Any]]:
+        data = self._get("vehicles_purchases_prices_all")
+        if not isinstance(data, list):
+            raise UexError("vehicles_purchases_prices_all response was not a list")
+        return data
+
     def sync(self, conn: sqlite3.Connection) -> int:
         run_id = start_run(conn, "uex")
         try:
             terminals = self.fetch_terminals()
             commodities = self.fetch_commodities()
             prices = self.fetch_commodities_prices_all()
-            game_version = _pick_game_version(terminals, commodities, prices) or "unknown"
+            vehicles = self.fetch_vehicles()
+            vehicle_purchases = self.fetch_vehicles_purchases_prices_all()
+            game_version = (
+                _pick_game_version(
+                    terminals, commodities, prices, vehicles, vehicle_purchases
+                )
+                or "unknown"
+            )
             rows = _apply_uex_payload(
                 conn,
                 run_id=run_id,
@@ -99,6 +118,14 @@ class UexClient:
                 terminals=terminals,
                 commodities=commodities,
                 prices=prices,
+            )
+            rows += _apply_uex_vehicle_purchases(
+                conn,
+                run_id=run_id,
+                game_version=game_version,
+                terminals=terminals,
+                vehicles=vehicles,
+                purchases=vehicle_purchases,
             )
             finish_run(
                 conn,
@@ -237,6 +264,146 @@ def _apply_uex_payload(
                 ingest_run_id=run_id,
             )
             count += 1
+
+    return count
+
+
+def _find_existing_ship_id(conn: sqlite3.Connection, *names: str) -> int | None:
+    candidates = [n.strip() for n in names if n and str(n).strip()]
+    if not candidates:
+        return None
+    for name in candidates:
+        row = conn.execute(
+            """
+            SELECT e.id
+            FROM entities e
+            WHERE e.kind = 'ship' AND e.canonical_name = ?
+            ORDER BY CASE WHEN e.game_version LIKE 'scw%' THEN 0 ELSE 1 END, e.id
+            LIMIT 1
+            """,
+            (name,),
+        ).fetchone()
+        if row:
+            return int(row["id"])
+        row = conn.execute(
+            """
+            SELECT e.id
+            FROM aliases a
+            JOIN entities e ON e.id = a.entity_id
+            WHERE e.kind = 'ship' AND a.alias = ? COLLATE NOCASE
+            ORDER BY CASE WHEN e.game_version LIKE 'scw%' THEN 0 ELSE 1 END, e.id
+            LIMIT 1
+            """,
+            (name,),
+        ).fetchone()
+        if row:
+            return int(row["id"])
+    return None
+
+
+def _apply_uex_vehicle_purchases(
+    conn: sqlite3.Connection,
+    *,
+    run_id: int,
+    game_version: str,
+    terminals: list[dict[str, Any]],
+    vehicles: list[dict[str, Any]],
+    purchases: list[dict[str, Any]],
+) -> int:
+    terminal_ids: dict[int, int] = {}
+    vehicle_ids: dict[int, int] = {}
+    count = 0
+
+    for t in terminals:
+        uex_id = t.get("id")
+        name = t.get("name") or t.get("displayname") or t.get("nickname")
+        if uex_id is None or not name:
+            continue
+        entity_id = upsert_entity(
+            conn,
+            kind="terminal",
+            canonical_name=str(name),
+            game_version=game_version,
+            slug=str(t.get("code") or "") or None,
+            uuid=f"uex-terminal-{uex_id}",
+        )
+        terminal_ids[int(uex_id)] = entity_id
+        upsert_alias(conn, entity_id, str(name), "en", "uex")
+
+    for v in vehicles:
+        uex_id = v.get("id")
+        name = v.get("name")
+        name_full = v.get("name_full") or name
+        if uex_id is None or not name:
+            continue
+        ship_id = _find_existing_ship_id(conn, str(name_full), str(name))
+        if ship_id is None:
+            ship_id = upsert_entity(
+                conn,
+                kind="ship",
+                canonical_name=str(name_full or name),
+                game_version=game_version,
+                slug=str(v.get("slug") or "") or None,
+                uuid=f"uex-vehicle-{uex_id}",
+            )
+            count += 1
+        vehicle_ids[int(uex_id)] = ship_id
+        for alias in {str(name), str(name_full)}:
+            if alias:
+                upsert_alias(conn, ship_id, alias, "en", "uex")
+
+    for p in purchases:
+        vehicle_uex = p.get("id_vehicle")
+        terminal_uex = p.get("id_terminal")
+        price_buy = p.get("price_buy")
+        if vehicle_uex is None or terminal_uex is None or price_buy is None:
+            continue
+        if float(price_buy) <= 0:
+            continue
+        ship_id = vehicle_ids.get(int(vehicle_uex))
+        terminal_id = terminal_ids.get(int(terminal_uex))
+        if ship_id is None:
+            vname = p.get("vehicle_name")
+            if vname:
+                ship_id = _find_existing_ship_id(conn, str(vname))
+                if ship_id is None:
+                    ship_id = upsert_entity(
+                        conn,
+                        kind="ship",
+                        canonical_name=str(vname),
+                        game_version=game_version,
+                        uuid=f"uex-vehicle-{vehicle_uex}",
+                    )
+                vehicle_ids[int(vehicle_uex)] = ship_id
+                upsert_alias(conn, ship_id, str(vname), "en", "uex")
+        if terminal_id is None:
+            tname = p.get("terminal_name")
+            if tname:
+                terminal_id = upsert_entity(
+                    conn,
+                    kind="terminal",
+                    canonical_name=str(tname),
+                    game_version=game_version,
+                    uuid=f"uex-terminal-{terminal_uex}",
+                )
+                terminal_ids[int(terminal_uex)] = terminal_id
+                upsert_alias(conn, terminal_id, str(tname), "en", "uex")
+        if ship_id is None or terminal_id is None:
+            continue
+        reported = p.get("date_modified") or p.get("date_added")
+        reported_at = str(reported) if reported is not None else None
+        replace_price(
+            conn,
+            commodity_id=ship_id,
+            terminal_id=terminal_id,
+            side="buy",
+            price=float(price_buy),
+            reported_at=reported_at,
+            source="uex",
+            game_version=game_version,
+            ingest_run_id=run_id,
+        )
+        count += 1
 
     return count
 
