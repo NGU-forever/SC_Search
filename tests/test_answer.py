@@ -90,6 +90,8 @@ def _seed(db_path: Path) -> None:
         source="test",
         game_version="4.10.3",
     )
+    unob = upsert_entity(conn, kind="commodity", canonical_name="Unobtanium", game_version="4.10.3")
+    upsert_alias(conn, unob, "Unobtanium", "zh", "manual")
     conn.commit()
     conn.close()
 
@@ -159,3 +161,32 @@ def test_unknown_no_invent(conn):
     r = answer_question(conn, "完全不存在的飞船XYZ123货舱")
     assert "未覆盖" in r["answer_draft"] or "没有" in r["answer_draft"]
     assert r["detail_available"] is False
+
+
+def test_cargo_draft_zh_and_high(conn):
+    r = answer_question(conn, "卡拉克货舱多大")
+    assert r["confidence"] == "high"
+    assert "货舱" in r["answer_draft"]
+    assert "cargo_capacity" not in r["answer_draft"] or "货舱" in r["answer_draft"]
+    assert r["browser"]["needed"] is False
+    assert r["evidence"]["facts"][0].get("key_zh") == "货舱"
+
+
+def test_missing_field_soft_browser(conn):
+    r = answer_question(conn, "卡拉克量子糖分是多少")
+    assert r["confidence"] in {"low", "medium"}
+    assert r["browser"]["needed"] is False
+    assert any("浏览器核实" in f for f in r["follow_ups"])
+
+
+def test_no_prices_low(conn):
+    r = answer_question(conn, "Unobtanium在哪卖")
+    assert r["intent"] == "prices"
+    assert r["confidence"] == "low"
+    assert r["browser"]["needed"] is False
+    assert any("浏览器核实" in f for f in r["follow_ups"])
+
+
+def test_detail_available_false_when_exhausted(conn):
+    r = answer_question(conn, "卡拉克厂家", detail_level="full")
+    assert "detail_available" in r

@@ -29,6 +29,46 @@ def _draft_live_suffix(live: str, source_ver: str | None = None) -> str:
     return f"（Live {live}）"
 
 _CARGO_KEYS = ("cargo_capacity", "cargo", "scu", "货舱")
+_FACT_KEY_ZH = {
+    "cargo_capacity": "货舱",
+    "cargo_scu": "货舱",
+    "cargo": "货舱",
+    "manufacturer": "制造商",
+    "manufacturer_code": "制造商代码",
+    "length": "长度",
+    "beam": "宽度",
+    "height": "高度",
+    "mass": "质量",
+    "mass_total": "质量",
+    "size": "尺寸",
+    "type": "类型",
+    "career": "职业",
+    "foci": "定位",
+    "production_status": "生产状态",
+    "crew": "乘员",
+    "hp": "结构值",
+}
+_SOFT_VERIFY = "要用浏览器核实吗？"
+
+
+def _label_fact_key(key: str | None) -> str:
+    k = (key or "").strip()
+    if not k:
+        return "参数"
+    return _FACT_KEY_ZH.get(k) or _FACT_KEY_ZH.get(k.lower()) or k
+
+
+def _slim_fact(f: dict) -> dict:
+    key = f.get("key")
+    return {
+        "key": key,
+        "key_zh": _label_fact_key(str(key) if key is not None else None),
+        "value_text": f.get("value_text"),
+        "value_num": f.get("value_num"),
+        "unit": f.get("unit"),
+        "source": f.get("source"),
+        "game_version": f.get("game_version"),
+    }
 _ZH_KEY_HINTS = (
     ("厂家", ("manufacturer",)),
     ("制造商", ("manufacturer",)),
@@ -103,7 +143,7 @@ def _slim_relations(rows: list[dict], limit: int = _RELATION_LIMIT) -> list[dict
     ]
 
 
-def _pick_facts(facts: list[dict], question: str, limit: int) -> list[dict]:
+def _pick_facts(facts: list[dict], question: str, limit: int) -> tuple[list[dict], bool]:
     q = question or ""
     ql = q.lower()
     wants_cargo = _question_wants_cargo(q)
@@ -132,6 +172,7 @@ def _pick_facts(facts: list[dict], question: str, limit: int) -> list[dict]:
         if fid not in seen:
             picked.append(f)
             seen.add(fid)
+    had_scored_hit = bool(picked)
     for f in facts:
         if len(picked) >= limit:
             break
@@ -139,17 +180,59 @@ def _pick_facts(facts: list[dict], question: str, limit: int) -> list[dict]:
         if fid not in seen:
             picked.append(f)
             seen.add(fid)
-    return [
-        {
-            "key": f.get("key"),
-            "value_text": f.get("value_text"),
-            "value_num": f.get("value_num"),
-            "unit": f.get("unit"),
-            "source": f.get("source"),
-            "game_version": f.get("game_version"),
-        }
-        for f in picked
-    ]
+    return [_slim_fact(f) for f in picked], had_scored_hit
+
+
+def _recompute_confidence(
+    intent: str,
+    *,
+    plan_confidence: str,
+    had_scored_hit: bool,
+    has_entity: bool,
+    facts: list,
+    prices: list,
+    docs: list,
+    missing: list[str],
+) -> str:
+    _ = missing  # reserved for future gap hints
+    if intent == "facts":
+        if had_scored_hit and facts:
+            return "high"
+        if has_entity and facts:
+            return "medium"  # backfill only
+        if has_entity and not facts:
+            return "low"
+        return "low"
+    if intent == "prices":
+        return "high" if prices else "low"
+    if intent == "docs":
+        return "medium" if docs else "low"
+    if intent in {"loadout_calc", "mining_calc"}:
+        return "medium" if facts else "low"
+    if intent == "live_web":
+        return plan_confidence
+    return plan_confidence if has_entity else "low"
+
+
+def _needs_soft_verify(
+    intent: str,
+    confidence: str,
+    *,
+    had_scored_hit: bool,
+    facts: list,
+    prices: list,
+    docs: list,
+) -> bool:
+    # Broader than spec §2.1 low-only: weak facts/prices/docs without scored match.
+    if confidence not in {"low", "medium"}:
+        return False
+    if intent == "facts":
+        return not had_scored_hit
+    if intent == "prices":
+        return not prices
+    if intent == "docs":
+        return not docs
+    return False
 
 
 def _slim_prices(rows: list[dict]) -> list[dict]:
@@ -184,6 +267,7 @@ def answer_question(
     detail_available = False
     draft = ""
     missing: list[str] = []
+    had_scored_hit = False
 
     fact_limit = _BRIEF_FACT_LIMIT if level == "brief" else _FULL_FACT_LIMIT
     price_limit = _BRIEF_PRICE_LIMIT if level == "brief" else _FULL_PRICE_LIMIT
@@ -198,22 +282,23 @@ def answer_question(
         if bundle:
             all_facts = bundle.get("facts") or []
             all_relations = bundle.get("relations") or []
-            picked = _pick_facts(all_facts, question, fact_limit)
+            picked, had_scored_hit = _pick_facts(all_facts, question, fact_limit)
             evidence["facts"] = picked
             if level == "full" and all_relations:
                 slim = _slim_relations(all_relations)
                 evidence["relations"] = slim
-            detail_available = (
-                len(all_facts) > len(picked)
-                or len(all_relations) > len(evidence.get("relations") or [])
-                or level == "brief"
+            detail_available = len(all_facts) > len(picked) or len(all_relations) > len(
+                evidence.get("relations") or []
             )
             src_ver = (bundle.get("entity") or {}).get("game_version")
             if intent == "facts":
                 if picked:
                     top = picked[0]
+                    key_label = top.get("key_zh") or _label_fact_key(
+                        str(top.get("key") or "")
+                    )
                     draft = (
-                        f"{label} 的 {top.get('key')} 为 {_fact_value(top)}"
+                        f"{label} 的 {key_label} 为 {_fact_value(top)}"
                         f"{_draft_live_suffix(live, src_ver)}。"
                     )
                     if detail_available:
@@ -319,15 +404,41 @@ def answer_question(
     if not draft:
         draft = "本地知识库未覆盖该问题；不会编造数据。"
 
+    has_entity = bool(evidence["entities"])
+    confidence = _recompute_confidence(
+        intent,
+        plan_confidence=plan["confidence"],
+        had_scored_hit=had_scored_hit,
+        has_entity=has_entity,
+        facts=evidence["facts"],
+        prices=evidence["prices"],
+        docs=evidence["docs"],
+        missing=missing,
+    )
+    browser = dict(plan.get("browser") or {"needed": False})
+    soft = _needs_soft_verify(
+        intent,
+        confidence,
+        had_scored_hit=had_scored_hit,
+        facts=evidence["facts"],
+        prices=evidence["prices"],
+        docs=evidence["docs"],
+    )
+    if soft:
+        if _SOFT_VERIFY not in follow_ups:
+            follow_ups.append(_SOFT_VERIFY)
+        if intent in {"facts", "prices", "docs"}:
+            browser = {**browser, "needed": False}
+
     return {
         "intent": intent,
         "path": plan["path"],
-        "confidence": plan["confidence"],
+        "confidence": confidence,
         "live_game_version": live,
         "answer_draft": draft,
         "evidence": evidence,
         "detail_available": detail_available,
         "follow_ups": follow_ups,
-        "browser": plan.get("browser") or {"needed": False},
+        "browser": browser,
         "plan": plan,
     }
