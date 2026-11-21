@@ -114,6 +114,7 @@ Windows 注意：`command` 一般写成
 
 | 你想问的 | 大致会用到的工具 |
 | :--- | :--- |
+| （任意 SC 问题，先路由） | `sc_query_plan`（意图路由：MCP vs 浏览器） |
 | 「黄金在哪卖贵？」 | `sc_best_prices` |
 | 「Lorville 都卖什么价？」 | `sc_terminal_prices` |
 | 「大白鲨是哪艘船？」 | `sc_resolve_name` |

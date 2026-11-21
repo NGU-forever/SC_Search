@@ -20,10 +20,12 @@
 * **优先从已记录的站点检索 (Priority Sources)**：
   * 检索时优先查阅并在可能时使用 [SOURCES.md](file:///Users/xiongtianyu/Desktop/SC_Search/SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
 * **本地知识库 MCP（优先）**：
-  * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**：`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
-  * 库未覆盖或需交互计算时（Erkul 配装、采矿计算站、Spectrum、CitizenWiki 需浏览器时）再开网页；不要编造库中没有的数据。
-  * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`（汉化组译名）。
-  * 中文提问先 `sc_resolve_name`：标准译名来自汉化组 ini，俗称来自 seed；再查物价/事实/文档。
+  * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度、以及「要不要开浏览器」等，优先调用本项目 MCP **`sc-search`**。
+  * **强制顺序**：先 `sc_query_plan(question)` → 按返回的 `mcp_steps` 调用 → **仅当** `browser.needed=true` 才开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
+  * `path=mcp_only`：答完即停；禁止为「核对」再开 Erkul。缺字段如实说明。
+  * 工具：`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
+  * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
+  * 中文提问：plan / resolve 用原话；浏览器 `search_term` 必须用 plan 给出的英文标准名。
 
 
 ---
@@ -66,13 +68,10 @@
 
 ---
 
-## 6. 浏览器交互与自动化规范 (Browser Automation Protocol - ego lite)
+## 6. 浏览器交互与自动化规范
 
-* **优先选用 ego-browser (ego lite)**：
-  * 当任务需要深入浏览外部网站、动态交互或提取非静态索引数据时（如打开并操作 SCMDB、Erkul 配装器、UEX 贸易网、RSI 官网/Spectrum 论坛等），**优先选用 `ego-browser` (ego lite)**。
-* **支持的核心操作能力**：
-  * **深度数据提取**：直接打开动态 JS 渲染的工具站，提取特定蓝图配方、矿物/货物实时牌价或飞船配件参数。
-  * **模拟人机交互**：支持模拟点击、筛选条件勾选、表单填充、滚动翻页以及页面截图。
-  * **上下文与登录态复用**：ego lite 支持与用户的日常浏览器环境无缝协同，可借助已登录的用户上下文（如 RSI 官方账号、舰队机库状态等）完成专属查询与操作。
-* **操作执行准则**：
-  * 遇到需要浏览器自动化的场景，优先调用 `ego-browser` 相关指令或技能，确保高效、稳定地在网页端获取一手最新数据。
+* **仅在 `sc_query_plan` 要求时开浏览器**（`browser.needed=true`）。日常事实查询不以浏览器为优先。
+* **剧本**：只用 plan 的 `start_url`；`search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表 → **关闭标签**。
+* **禁止**：`/auth`、`/settings`；同一题未在 plan 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词。
+* **失败降级**：超时或失败时，用已有 MCP facts 答静态部分，并标明「配装/DPS 未取到」。
+* 需要浏览器自动化时，优先 `ego-browser`（ego lite），但仍须服从上述 plan。
