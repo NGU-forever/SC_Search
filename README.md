@@ -85,28 +85,26 @@ python -m sc_search.ingest status
 
 ### 4. 接到 Cursor
 
-1. 打开或编辑项目里的 `.cursor/mcp.json`。
-2. 把路径改成**你自己电脑上的项目路径**（下面是示例）：
+1. 打开或编辑项目里的 `.cursor/mcp.json`（相对项目根即可）：
 
 ```json
 {
   "mcpServers": {
     "sc-search": {
-      "command": "/你的路径/SC_Search/.venv/bin/python",
+      "command": ".venv/bin/python",
       "args": ["-m", "sc_search.mcp_server"],
-      "cwd": "/你的路径/SC_Search",
+      "cwd": ".",
       "env": {
-        "SC_SEARCH_DB": "/你的路径/SC_Search/data/sc_knowledge.sqlite"
+        "SC_SEARCH_DB": "data/sc_knowledge.sqlite"
       }
     }
   }
 }
 ```
 
-Windows 注意：`command` 一般写成  
-`C:\\你的路径\\SC_Search\\.venv\\Scripts\\python.exe`。
+Windows：`command` 用 `.venv\\Scripts\\python.exe`。若相对路径不起作用，再改成你本机的绝对路径。
 
-3. 在 Cursor 里**重载 MCP / 重启 Agent**，确认出现服务器 **`sc-search`**。
+2. 在 Cursor 里**重载 MCP / 重启 Agent**，确认出现服务器 **`sc-search`**。
 
 ### 5. 开始提问
 

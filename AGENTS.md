@@ -18,7 +18,7 @@
   * **前置标准映射**：必须先从《星际公民》中文 Wiki（如 `citizenwiki.cn`）中对照确认官方/汉化组统一的标准中英文名称（如飞船名、配件名、任务名、势力名、地点名）。
   * 在确认标准中文译名与社区常用俗称后，再携带规范名称深入中文网站检索，确保搜索命中率与数据准确性。
 * **优先从已记录的站点检索 (Priority Sources)**：
-  * 检索时优先查阅并在可能时使用 [SOURCES.md](file:///Users/xiongtianyu/Desktop/SC_Search/SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
+  * 检索时优先查阅并在可能时使用 [SOURCES.md](SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
 * **本地知识库 MCP（优先）**：
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**。
   * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc`/`howto`/`client_help`/`earn_meta`/`pledge_meta`/`event_guide`/`trade_route`/`ship_shop` 先给本地证据+推理短答（及 `browser.resources` 外链），仅当用户要精确计算/逐步核对或明确说打开教程时才按返回的 `browser`（`wait_confirm`）打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
@@ -48,7 +48,7 @@
 ## 2. 用户分享网站自动沉淀机制 (Site Tracking Protocol)
 
 * **自动识别与记录**：
-  * 凡是用户在对话中提到或分享的任何网站、论坛、工具、数据库或文章链接，**必须立即同步追加记录**至项目根目录下的 [SOURCES.md](file:///Users/xiongtianyu/Desktop/Star%20Citizen/SOURCES.md) 中。
+  * 凡是用户在对话中提到或分享的任何网站、论坛、工具、数据库或文章链接，**必须立即同步追加记录**至项目根目录下的 [SOURCES.md](SOURCES.md) 中。
   * 记录字段包括：网站名称、完整 URL / 域名、功能或主要涵盖内容、记录日期与说明。
 * **优先复用原则**：
   * 在后续需要查找相关信息时，主动利用 `search_web` 的 `domain` 过滤推荐或针对该站点检索，优先从用户沉淀的网站源中获取最新内容。
