@@ -249,3 +249,35 @@ def clear_source_facts_relations(
         "DELETE FROM relations WHERE source = ? AND game_version = ?",
         (source, game_version),
     )
+
+
+def clear_source_documents(
+    conn: sqlite3.Connection,
+    source: str,
+    game_version: str,
+) -> None:
+    conn.execute(
+        "DELETE FROM documents WHERE source = ? AND game_version = ?",
+        (source, game_version),
+    )
+
+
+def insert_document(
+    conn: sqlite3.Connection,
+    *,
+    title: str,
+    body: str,
+    source: str,
+    game_version: str,
+    ingest_run_id: int | None = None,
+    entity_id: int | None = None,
+    url: str | None = None,
+) -> int:
+    cur = conn.execute(
+        """
+        INSERT INTO documents (entity_id, title, url, body, source, game_version, ingest_run_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (entity_id, title, url, body, source, game_version, ingest_run_id),
+    )
+    return int(cur.lastrowid)

@@ -27,7 +27,15 @@ def entity_facts(conn: sqlite3.Connection, name_or_id: str) -> dict | None:
         if not matches:
             return None
         # Prefer mission/blueprint over others when ambiguous
-        priority = {"mission": 0, "blueprint": 1, "blueprint_pool": 2, "item": 3, "faction": 4}
+        priority = {
+            "ship": 0,
+            "mission": 1,
+            "blueprint": 2,
+            "blueprint_pool": 3,
+            "commodity": 4,
+            "item": 5,
+            "faction": 6,
+        }
         matches = sorted(matches, key=lambda m: priority.get(str(m.get("kind")), 99))
         entity = {
             "id": matches[0]["id"],

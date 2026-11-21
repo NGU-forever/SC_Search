@@ -36,6 +36,12 @@ def cmd_status(_: argparse.Namespace) -> int:
     return 0
 
 
+def _sync_result(source: str, rows: int, path, **extra) -> int:
+    payload = {"ok": True, "source": source, "row_count": rows, "db": str(path), **extra}
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
 def cmd_sync(args: argparse.Namespace) -> int:
     path = get_db_path()
     conn = connect(path)
@@ -54,8 +60,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
             except Exception:
                 conn.rollback()
                 raise
-            print(json.dumps({"ok": True, "source": "uex", "row_count": rows, "db": str(path)}, ensure_ascii=False))
-            return 0
+            return _sync_result("uex", rows, path)
 
         if args.source == "scmdb":
             from sc_search.ingest.adapters.scmdb import ScmdbError, sync_scmdb
@@ -70,19 +75,52 @@ def cmd_sync(args: argparse.Namespace) -> int:
             except Exception:
                 conn.rollback()
                 raise
-            print(
-                json.dumps(
-                    {
-                        "ok": True,
-                        "source": "scmdb",
-                        "channel": args.channel,
-                        "row_count": rows,
-                        "db": str(path),
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            return 0
+            return _sync_result("scmdb", rows, path, channel=args.channel)
+
+        if args.source == "scw":
+            from sc_search.ingest.adapters.scw_api import ScwError, sync_scw
+
+            try:
+                rows = sync_scw(conn)
+                conn.commit()
+            except ScwError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            return _sync_result("scw", rows, path)
+
+        if args.source == "wiki":
+            from sc_search.ingest.adapters.wiki import WikiError, sync_wiki
+
+            try:
+                rows = sync_wiki(conn)
+                conn.commit()
+            except WikiError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            return _sync_result("wiki", rows, path)
+
+        if args.source == "aliases":
+            from sc_search.ingest.adapters.aliases import AliasError, sync_aliases
+
+            try:
+                rows = sync_aliases(conn)
+                conn.commit()
+            except AliasError as exc:
+                conn.commit()
+                print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+                return 1
+            except Exception:
+                conn.rollback()
+                raise
+            return _sync_result("aliases", rows, path)
 
         print(json.dumps({"ok": False, "error": f"unknown source: {args.source}"}, ensure_ascii=False))
         return 1
@@ -101,12 +139,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.set_defaults(func=cmd_status)
 
     p_sync = sub.add_parser("sync", help="Sync a data source into SQLite")
-    p_sync.add_argument("source", choices=["uex", "scmdb"], help="Source adapter name")
+    p_sync.add_argument(
+        "source",
+        choices=["uex", "scmdb", "scw", "wiki", "aliases"],
+        help="Source adapter name",
+    )
     p_sync.add_argument(
         "--channel",
         default="live",
         choices=["live", "ptu", "latest"],
-        help="SCMDB channel (ignored for uex)",
+        help="SCMDB channel (ignored for other sources)",
     )
     p_sync.add_argument("--version", default=None, help="Optional exact SCMDB version substring")
     p_sync.set_defaults(func=cmd_sync)

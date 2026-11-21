@@ -12,6 +12,7 @@ from sc_search.query.entities import entity_facts
 from sc_search.query.freshness import data_freshness
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.resolve import resolve_name
+from sc_search.query.search import search_docs
 
 mcp = MCPServer("sc-search")
 
@@ -108,7 +109,7 @@ def sc_data_freshness(source: str | None = None) -> str:
 
 @mcp.tool()
 def sc_entity_facts(name_or_id: str) -> str:
-    """Facts and relations for a mission, blueprint, item, or faction from local SCMDB/UEX data."""
+    """Facts and relations for a mission, blueprint, ship, item, or faction from local DB."""
     try:
         conn = open_db()
         try:
@@ -123,6 +124,22 @@ def sc_entity_facts(name_or_id: str) -> str:
         return _err(str(exc))
 
 
+@mcp.tool()
+def sc_search_docs(query: str, limit: int = 5) -> str:
+    """Full-text search Star Citizen wiki extracts stored locally (FTS5)."""
+    try:
+        conn = open_db()
+        try:
+            data = search_docs(conn, query, limit=limit)
+            if not data:
+                return _err(f"no documents matched query={query!r}")
+            return _ok(data, _meta_from_rows(data))
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
 # Expose undecorated handlers for unit tests
 handlers = {
     "sc_resolve_name": sc_resolve_name,
@@ -130,4 +147,5 @@ handlers = {
     "sc_terminal_prices": sc_terminal_prices,
     "sc_data_freshness": sc_data_freshness,
     "sc_entity_facts": sc_entity_facts,
+    "sc_search_docs": sc_search_docs,
 }

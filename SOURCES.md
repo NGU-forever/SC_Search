@@ -28,6 +28,7 @@
 | **UEX Corp** | `uexcorp.space` | 跑商贸易路线、货物价格、精炼收益、矿石价格动态 |
 | **SC Trade Tools** | `sc-trade.tools` | 贸易货物最优路线规划与黑市/违禁品收购点 |
 | **Star Citizen Wiki** | `starcitizen.tools` | 官方背景设定、星系天体、飞船历史参数、势力词条 |
+| **Star Citizen Wiki API** | `https://api.star-citizen.wiki` | 结构化飞船/物品游戏数据（本项目 `sync scw`） |
 | **CitizenWiki (中文维基)** | `citizenwiki.cn` | 官方/汉化组维护的标准中文名词库、中英文对照、本地化词条与指南 |
 | **Roberts Space Industries (RSI)** | `robertsspaceindustries.com` | 官方新闻、Patch Notes（补丁说明）、Comm-Link、Spectrum 论坛 |
 | **SC Focus** | `scfocus.org` | 飞船对比、版本改动摘要与入门指南 |

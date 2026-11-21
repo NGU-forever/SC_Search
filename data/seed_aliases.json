@@ -1,0 +1,19 @@
+[
+  {"alias": "大白鲨", "target": "Carrack", "lang": "slang", "kind": "ship"},
+  {"alias": "仙女座", "target": "Andromeda", "lang": "slang", "kind": "ship"},
+  {"alias": "砍刀", "target": "Cutlass Black", "lang": "slang", "kind": "ship"},
+  {"alias": "黑砍", "target": "Cutlass Black", "lang": "slang", "kind": "ship"},
+  {"alias": "蓝砍", "target": "Cutlass Blue", "lang": "slang", "kind": "ship"},
+  {"alias": "金牛", "target": "Taurus", "lang": "slang", "kind": "ship"},
+  {"alias": "C2", "target": "C2 Hercules", "lang": "slang", "kind": "ship"},
+  {"alias": "微凸", "target": "New Babbage", "lang": "slang", "kind": "location"},
+  {"alias": "新巴贝奇", "target": "New Babbage", "lang": "zh", "kind": "location"},
+  {"alias": "大火星", "target": "Hurston", "lang": "slang", "kind": "location"},
+  {"alias": "赫斯顿", "target": "Hurston", "lang": "zh", "kind": "location"},
+  {"alias": "18区", "target": "Area18", "lang": "slang", "kind": "location"},
+  {"alias": "弧星", "target": "ArcCorp", "lang": "slang", "kind": "location"},
+  {"alias": "十字军", "target": "Orison", "lang": "slang", "kind": "location"},
+  {"alias": "奥里森", "target": "Orison", "lang": "zh", "kind": "location"},
+  {"alias": "六角湾", "target": "Baijini Point", "lang": "slang", "kind": "location"},
+  {"alias": "GH", "target": "Grim HEX", "lang": "slang", "kind": "location"}
+]
