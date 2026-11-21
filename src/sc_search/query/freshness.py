@@ -1,6 +1,34 @@
 from __future__ import annotations
 
+import re
 import sqlite3
+
+# Authoritative Live patch for display when SCMDB has not been synced yet.
+LIVE_FALLBACK = "4.10.3"
+
+_LIVE_PREFIX = re.compile(r"^(\d+\.\d+(?:\.\d+)?)")
+
+
+def short_live_label(game_version: str | None) -> str | None:
+    """Normalize ``4.10.3-live.13220821`` → ``4.10.3``."""
+    if not game_version:
+        return None
+    text = str(game_version).strip()
+    if not text:
+        return None
+    m = _LIVE_PREFIX.match(text)
+    return m.group(1) if m else text
+
+
+def live_game_version(conn: sqlite3.Connection) -> str:
+    """Live patch for answers: prefer latest ok SCMDB run, else ``LIVE_FALLBACK``."""
+    rows = data_freshness(conn, source="scmdb")
+    for row in rows:
+        if row.get("status") == "ok":
+            label = short_live_label(row.get("game_version"))
+            if label:
+                return label
+    return LIVE_FALLBACK
 
 
 def data_freshness(conn: sqlite3.Connection, source: str | None = None) -> list[dict]:

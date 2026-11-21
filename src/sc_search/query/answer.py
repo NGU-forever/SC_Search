@@ -3,9 +3,30 @@ from __future__ import annotations
 import sqlite3
 
 from sc_search.query.entities import entity_facts
+from sc_search.query.freshness import live_game_version
 from sc_search.query.plan import query_plan
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.search import search_docs
+
+_PLACEHOLDER_VERSIONS = frozenset(
+    {"scw-live", "wiki-live", "aliases", "localization-full", "unknown"}
+)
+
+
+def _draft_live_suffix(live: str, source_ver: str | None = None) -> str:
+    """Show Live as authority; mention stale source tags (e.g. UEX 3.24.2) separately."""
+    if not live:
+        return ""
+    src = (source_ver or "").strip()
+    if (
+        src
+        and src not in _PLACEHOLDER_VERSIONS
+        and src != live
+        and not src.startswith(f"{live}-")
+        and not src.startswith(f"{live}.")
+    ):
+        return f"（Live {live}；来源标注 {src}）"
+    return f"（Live {live}）"
 
 _CARGO_KEYS = ("cargo_capacity", "cargo", "scu", "货舱")
 _ZH_KEY_HINTS = (
@@ -170,6 +191,7 @@ def answer_question(
 
     primary = evidence["entities"][0]["canonical_name"] if evidence["entities"] else ""
     label = _display_name(evidence["entities"])
+    live = live_game_version(conn)
 
     if intent in {"facts", "loadout_calc", "mining_calc"} and primary:
         bundle = entity_facts(conn, primary)
@@ -186,13 +208,13 @@ def answer_question(
                 or len(all_relations) > len(evidence.get("relations") or [])
                 or level == "brief"
             )
-            ver = (bundle.get("entity") or {}).get("game_version") or ""
+            src_ver = (bundle.get("entity") or {}).get("game_version")
             if intent == "facts":
                 if picked:
                     top = picked[0]
                     draft = (
                         f"{label} 的 {top.get('key')} 为 {_fact_value(top)}"
-                        f"{('（' + ver + '）') if ver else ''}。"
+                        f"{_draft_live_suffix(live, src_ver)}。"
                     )
                     if detail_available:
                         draft += "需要更细的硬点/部件可以说一声。"
@@ -241,17 +263,16 @@ def answer_question(
         evidence["prices"] = _slim_prices(rows)
         if rows:
             top = rows[0]
+            ver_suffix = _draft_live_suffix(live, top.get("game_version"))
             if terminal_name and commodity_entity is None:
                 draft = (
                     f"{terminal_name} {side} 报价示例：{top.get('commodity')} "
-                    f"约 {top.get('price')} aUEC"
-                    f"{('（' + str(top.get('game_version')) + '）') if top.get('game_version') else ''}。"
+                    f"约 {top.get('price')} aUEC{ver_suffix}。"
                 )
             else:
                 draft = (
                     f"{top.get('commodity')} {side} 较优：{top.get('terminal')} "
-                    f"约 {top.get('price')} aUEC"
-                    f"{('（' + str(top.get('game_version')) + '）') if top.get('game_version') else ''}。"
+                    f"约 {top.get('price')} aUEC{ver_suffix}。"
                 )
             detail_available = True
             follow_ups = ["看更多终端", "查买入价"] if side == "sell" else ["看更多终端", "查卖出价"]
@@ -302,6 +323,7 @@ def answer_question(
         "intent": intent,
         "path": plan["path"],
         "confidence": plan["confidence"],
+        "live_game_version": live,
         "answer_draft": draft,
         "evidence": evidence,
         "detail_available": detail_available,

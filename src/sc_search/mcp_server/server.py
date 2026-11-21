@@ -10,7 +10,7 @@ from sc_search.ingest.db import connect
 from sc_search.paths import get_db_path
 from sc_search.query.answer import answer_question
 from sc_search.query.entities import entity_facts
-from sc_search.query.freshness import data_freshness
+from sc_search.query.freshness import data_freshness, live_game_version
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.plan import query_plan
 from sc_search.query.resolve import resolve_name
@@ -153,13 +153,9 @@ def sc_answer(
             data = answer_question(
                 conn, question, detail_level=detail_level, hint_entity=hint_entity
             )
-            meta = {}
-            facts = (data.get("evidence") or {}).get("facts") or []
-            prices = (data.get("evidence") or {}).get("prices") or []
-            if facts:
-                meta["game_version"] = facts[0].get("game_version")
-            elif prices:
-                meta["game_version"] = prices[0].get("game_version")
+            meta = {
+                "game_version": data.get("live_game_version") or live_game_version(conn),
+            }
             return _ok(data, meta)
         finally:
             conn.close()

@@ -4,6 +4,7 @@ import pytest
 
 from sc_search.ingest.db import connect, init_db
 from sc_search.ingest.normalize import (
+    finish_run,
     insert_relation,
     replace_price,
     start_run,
@@ -17,7 +18,15 @@ from sc_search.query.answer import answer_question
 def _seed(db_path: Path) -> None:
     conn = connect(db_path)
     init_db(conn)
-    run = start_run(conn, "scw", "4.10.3")
+    scmdb_run = start_run(conn, "scmdb", "4.10.3-live.13220821")
+    finish_run(
+        conn,
+        scmdb_run,
+        status="ok",
+        row_count=1,
+        game_version="4.10.3-live.13220821",
+    )
+    run = start_run(conn, "scw", "scw-live")
     ship = upsert_entity(conn, kind="ship", canonical_name="Carrack", game_version="4.10.3")
     upsert_alias(conn, ship, "卡拉克", "zh", "manual")
     upsert_fact(
@@ -68,7 +77,7 @@ def _seed(db_path: Path) -> None:
         side="sell",
         price=250.0,
         source="uex",
-        game_version="4.10.3",
+        game_version="3.24.2",
         ingest_run_id=run,
         reported_at="2026-01-01T00:00:00+00:00",
     )
@@ -133,6 +142,9 @@ def test_prices_sell(conn):
     assert r["browser"]["needed"] is False
     assert "Lorville" in r["answer_draft"] or "250" in r["answer_draft"]
     assert r["evidence"]["prices"]
+    assert r["live_game_version"] == "4.10.3"
+    assert "Live 4.10.3" in r["answer_draft"]
+    assert "3.24.2" in r["answer_draft"]  # UEX tag kept as 来源标注
 
 
 def test_loadout_static_suggests_browser(conn):

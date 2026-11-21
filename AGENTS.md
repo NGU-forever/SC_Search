@@ -25,6 +25,7 @@
   * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
   * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
   * 不要编造库中没有的数据。
+  * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。
   * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
   * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
