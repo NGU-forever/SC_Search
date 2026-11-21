@@ -38,12 +38,16 @@ def list_missions(
           fr.value_num AS reward_uec,
           fmt.value_text AS mission_type,
           fs.value_text AS systems,
-          (
-            SELECT a.alias
-            FROM aliases a
-            WHERE a.entity_id = e.id
-            ORDER BY length(a.alias) DESC, a.alias
-            LIMIT 1
+          COALESCE(
+            (
+              SELECT a.alias
+              FROM aliases a
+              WHERE a.entity_id = e.id
+                AND a.alias != e.canonical_name
+              ORDER BY length(a.alias) ASC, a.alias
+              LIMIT 1
+            ),
+            e.canonical_name
           ) AS title
         FROM entities e
         INNER JOIN facts fc ON fc.entity_id = e.id AND fc.key = 'contractor'
