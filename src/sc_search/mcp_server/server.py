@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 
 from sc_search.ingest.db import connect
 from sc_search.paths import get_db_path
+from sc_search.query.answer import answer_question
 from sc_search.query.entities import entity_facts
 from sc_search.query.freshness import data_freshness
 from sc_search.query.prices import best_prices, terminal_prices
@@ -140,6 +141,33 @@ def sc_query_plan(question: str, hint_entity: str | None = None) -> str:
 
 
 @mcp.tool()
+def sc_answer(
+    question: str,
+    detail_level: str = "brief",
+    hint_entity: str | None = None,
+) -> str:
+    """One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape)."""
+    try:
+        conn = open_db()
+        try:
+            data = answer_question(
+                conn, question, detail_level=detail_level, hint_entity=hint_entity
+            )
+            meta = {}
+            facts = (data.get("evidence") or {}).get("facts") or []
+            prices = (data.get("evidence") or {}).get("prices") or []
+            if facts:
+                meta["game_version"] = facts[0].get("game_version")
+            elif prices:
+                meta["game_version"] = prices[0].get("game_version")
+            return _ok(data, meta)
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
 def sc_search_docs(query: str, limit: int = 5) -> str:
     """Full-text search Star Citizen wiki extracts stored locally (FTS5)."""
     try:
@@ -157,6 +185,7 @@ def sc_search_docs(query: str, limit: int = 5) -> str:
 
 # Expose undecorated handlers for unit tests
 handlers = {
+    "sc_answer": sc_answer,
     "sc_query_plan": sc_query_plan,
     "sc_resolve_name": sc_resolve_name,
     "sc_best_prices": sc_best_prices,

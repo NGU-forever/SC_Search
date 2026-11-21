@@ -4,7 +4,14 @@ from pathlib import Path
 import pytest
 
 from sc_search.ingest.db import connect, init_db
-from sc_search.ingest.normalize import finish_run, replace_price, start_run, upsert_alias, upsert_entity
+from sc_search.ingest.normalize import (
+    finish_run,
+    replace_price,
+    start_run,
+    upsert_alias,
+    upsert_entity,
+    upsert_fact,
+)
 from sc_search.mcp_server import server as mcp_server
 
 
@@ -27,8 +34,19 @@ def _seed(db_path: Path) -> None:
         reported_at="2026-01-01T00:00:00+00:00",
     )
     finish_run(conn, run_id, status="ok", row_count=1, game_version="4.10.3")
+    run_scw = start_run(conn, "scw", "4.10.3")
     ship = upsert_entity(conn, kind="ship", canonical_name="Carrack", game_version="4.10.3")
     upsert_alias(conn, ship, "卡拉克", "zh", "manual")
+    upsert_fact(
+        conn,
+        entity_id=ship,
+        key="cargo_capacity",
+        value_num=456.0,
+        unit="SCU",
+        source="scw",
+        game_version="4.10.3",
+        ingest_run_id=run_scw,
+    )
     conn.commit()
     conn.close()
 
@@ -57,3 +75,8 @@ def test_mcp_handlers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert plan["ok"] is True
     assert plan["data"]["intent"] == "loadout_calc"
     assert plan["data"]["browser"]["search_term"] == "Carrack"
+
+    ans = json.loads(mcp_server.handlers["sc_answer"]("卡拉克货舱多大"))
+    assert ans["ok"] is True
+    assert ans["data"]["browser"]["needed"] is False
+    assert ans["data"]["answer_draft"]
