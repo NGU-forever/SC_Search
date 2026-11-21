@@ -92,6 +92,19 @@ def _seed(db_path: Path) -> None:
     )
     unob = upsert_entity(conn, kind="commodity", canonical_name="Unobtanium", game_version="4.10.3")
     upsert_alias(conn, unob, "Unobtanium", "zh", "manual")
+    bp = upsert_entity(
+        conn, kind="blueprint", canonical_name="JS-400", game_version="4.10.3"
+    )
+    upsert_alias(conn, bp, "JS-400", "en", "manual")
+    upsert_fact(
+        conn,
+        entity_id=bp,
+        key="pool_name",
+        value_text="BP_REWARDS_FullStrikeOnStationB",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
     conn.commit()
     conn.close()
 
@@ -190,3 +203,25 @@ def test_no_prices_low(conn):
 def test_detail_available_false_when_exhausted(conn):
     r = answer_question(conn, "卡拉克厂家", detail_level="full")
     assert r["detail_available"] is False
+
+
+def test_blueprint_buy_acquisition_unknown(conn):
+    for q in ("JS-400 哪里买", "JS-400 多少钱", "JS-400 能买到吗"):
+        r = answer_question(conn, q)
+        acq = r["evidence"].get("acquisition")
+        assert acq is not None
+        assert acq["shop_buyable"] == "unknown"
+        assert acq["mode"] == "blueprint_reward"
+        assert acq["pool"] == "BP_REWARDS_FullStrikeOnStationB"
+        draft = r["answer_draft"]
+        assert "蓝图" in draft or "奖励" in draft
+        assert "未找到商店报价" in draft
+        assert "商店不可直接购买" not in draft
+        assert r["confidence"] == "high"
+        assert r["browser"]["needed"] is False
+        assert not any("浏览器核实" in f for f in r["follow_ups"])
+
+
+def test_blueprint_what_is_no_acquisition_early_return(conn):
+    r = answer_question(conn, "JS-400 是什么")
+    assert r["evidence"].get("acquisition") is None

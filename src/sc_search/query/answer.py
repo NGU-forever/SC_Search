@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 
 from sc_search.query.entities import entity_facts
@@ -7,6 +8,11 @@ from sc_search.query.freshness import live_game_version
 from sc_search.query.plan import query_plan
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.search import search_docs
+
+_OBTAIN_RE = re.compile(
+    r"(哪里买|在哪买|能买到|买得到|多少钱|价格|报价|哪[买卖出]|买点|卖点|\bbuy\b|\bsell\b|\bprice\b|买)",
+    re.I,
+)
 
 _PLACEHOLDER_VERSIONS = frozenset(
     {"scw-live", "wiki-live", "aliases", "localization-full", "unknown"}
@@ -88,6 +94,37 @@ _FULL_DOC_LIMIT = 5
 
 def _empty_evidence() -> dict:
     return {"entities": [], "facts": [], "relations": [], "prices": [], "docs": [], "missing": []}
+
+
+def _wants_obtain_or_price(question: str) -> bool:
+    return bool(_OBTAIN_RE.search(question or ""))
+
+
+def _pool_name_from_facts(facts: list[dict]) -> str | None:
+    for f in facts:
+        if str(f.get("key") or "") == "pool_name":
+            v = f.get("value_text")
+            return str(v) if v else None
+    return None
+
+
+def _acquisition_unknown(pool: str | None) -> dict:
+    return {
+        "mode": "blueprint_reward",
+        "shop_buyable": "unknown",
+        "pool": pool,
+        "hint_zh": "本地仅见蓝图/奖励记录，未找到商店报价",
+    }
+
+
+def _draft_blueprint_unknown(
+    label: str, pool: str | None, live: str, src_ver: str | None
+) -> str:
+    pool_bit = f"（池：{pool}）" if pool else ""
+    return (
+        f"{label} 本地仅见蓝图/任务奖励记录{pool_bit}，未找到商店报价；"
+        f"不能据此断言绝对买不到{_draft_live_suffix(live, src_ver)}。"
+    )
 
 
 def _display_name(entities: list[dict]) -> str:
@@ -276,6 +313,32 @@ def answer_question(
     primary = evidence["entities"][0]["canonical_name"] if evidence["entities"] else ""
     label = _display_name(evidence["entities"])
     live = live_game_version(conn)
+    primary_kind = (
+        evidence["entities"][0].get("kind") if evidence["entities"] else None
+    )
+
+    if _wants_obtain_or_price(question) and primary_kind == "blueprint" and primary:
+        bundle = entity_facts(conn, primary) or {}
+        all_facts = bundle.get("facts") or []
+        pool = _pool_name_from_facts(all_facts)
+        evidence["acquisition"] = _acquisition_unknown(pool)
+        evidence["facts"] = [_slim_fact(f) for f in all_facts[:fact_limit]]
+        evidence["missing"] = []
+        src_ver = (bundle.get("entity") or {}).get("game_version")
+        return {
+            "intent": intent,
+            "path": plan["path"],
+            "confidence": "high",
+            "live_game_version": live,
+            "answer_draft": _draft_blueprint_unknown(
+                label or primary, pool, live, src_ver
+            ),
+            "evidence": evidence,
+            "detail_available": False,
+            "follow_ups": [],
+            "browser": {"needed": False},
+            "plan": plan,
+        }
 
     if intent in {"facts", "loadout_calc", "mining_calc"} and primary:
         bundle = entity_facts(conn, primary)
