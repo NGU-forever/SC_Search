@@ -28,6 +28,35 @@ _DOCS_RE = re.compile(
     r"(lore|设定|背景|wiki\s*摘要|是什么来头)",
     re.I,
 )
+_BUY_RE = re.compile(r"(买|\bbuy\b)", re.I)
+_SELL_RE = re.compile(r"(卖|哪出|\bsell\b)", re.I)
+
+
+def _mcp_resolve_text(hint: str | None, entities: list[dict]) -> str:
+    h = (hint or "").strip()
+    if h:
+        return h
+    if entities:
+        e = entities[0]
+        if e.get("zh"):
+            return str(e["zh"])
+        return str(e["canonical_name"])
+    return ""
+
+
+def _browser_search_term(entities: list[dict]) -> str:
+    if entities:
+        return str(entities[0]["canonical_name"])
+    return ""
+
+
+def _price_side(question: str) -> str:
+    q = question or ""
+    if _BUY_RE.search(q):
+        return "buy"
+    if _SELL_RE.search(q):
+        return "sell"
+    return "sell"
 
 
 def _entity_brief(m: dict) -> dict:
@@ -153,50 +182,60 @@ def query_plan(
     hint = (hint_entity or "").strip() or None
 
     entities = _resolve_entities(conn, hint, q)
-    primary = entities[0]["canonical_name"] if entities else (hint or "")
+    resolve_text = _mcp_resolve_text(hint, entities)
+    search_term = _browser_search_term(entities)
+    primary = entities[0]["canonical_name"] if entities else ""
 
     # Overlapping 怎么配 + mining terms must prefer mining_calc (e.g. 鼹鼠怎么配激光头).
     if _MINING_RE.search(q):
+        conf = "high" if search_term else "medium"
+        steps: list[dict] = []
+        if resolve_text:
+            steps.append({"tool": "sc_resolve_name", "args": {"text": resolve_text}})
         return {
             "intent": "mining_calc",
             "path": "mcp_then_browser",
-            "confidence": "high",
+            "confidence": conf,
             "entities": entities,
-            "mcp_steps": (
-                [{"tool": "sc_resolve_name", "args": {"text": hint or q}}] if q else []
-            ),
-            "browser": _browser_mining(primary or q),
+            "mcp_steps": steps,
+            "browser": _browser_mining(search_term),
             "stop_if": "只要矿船静态参数时不开采矿站",
             "reason": "采矿配装/模拟需交互站",
         }
 
     if _LOADOUT_RE.search(q):
+        conf = "high" if search_term else "medium"
         steps = []
-        if q:
-            steps.append({"tool": "sc_resolve_name", "args": {"text": hint or q}})
+        if resolve_text:
+            steps.append({"tool": "sc_resolve_name", "args": {"text": resolve_text}})
         if primary:
             steps.append({"tool": "sc_entity_facts", "args": {"name_or_id": primary}})
         return {
             "intent": "loadout_calc",
             "path": "mcp_then_browser",
-            "confidence": "high",
+            "confidence": conf,
             "entities": entities,
             "mcp_steps": steps,
-            "browser": _browser_erkul(primary or q),
+            "browser": _browser_erkul(search_term),
             "stop_if": "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
             "reason": "配装/DPS 需 Erkul；库无实时计算",
         }
 
     if _PRICES_RE.search(q):
-        commodity = primary or q
+        commodity = primary or resolve_text
+        side = _price_side(q)
         return {
             "intent": "prices",
             "path": "mcp_only",
             "confidence": "high",
             "entities": entities,
             "mcp_steps": [
-                {"tool": "sc_resolve_name", "args": {"text": hint or q}},
-                {"tool": "sc_best_prices", "args": {"commodity": commodity, "side": "sell"}},
+                *(
+                    [{"tool": "sc_resolve_name", "args": {"text": resolve_text}}]
+                    if resolve_text
+                    else []
+                ),
+                {"tool": "sc_best_prices", "args": {"commodity": commodity, "side": side}},
             ],
             "browser": _browser_off(),
             "stop_if": "有报价则不要开浏览器",
@@ -245,7 +284,11 @@ def query_plan(
             "confidence": "high",
             "entities": entities,
             "mcp_steps": [
-                {"tool": "sc_resolve_name", "args": {"text": hint or q}},
+                *(
+                    [{"tool": "sc_resolve_name", "args": {"text": resolve_text}}]
+                    if resolve_text
+                    else []
+                ),
                 {"tool": "sc_entity_facts", "args": {"name_or_id": name}},
             ],
             "browser": _browser_off(),
@@ -258,7 +301,9 @@ def query_plan(
         "path": "mcp_only",
         "confidence": "low",
         "entities": [],
-        "mcp_steps": [{"tool": "sc_resolve_name", "args": {"text": q}}],
+        "mcp_steps": (
+            [{"tool": "sc_resolve_name", "args": {"text": resolve_text}}] if resolve_text else []
+        ),
         "browser": _browser_off(),
         "stop_if": "未解析到实体前不要盲目开浏览器",
         "reason": "无法判断意图；先 resolve",

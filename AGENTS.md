@@ -23,6 +23,7 @@
   * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度、以及「要不要开浏览器」等，优先调用本项目 MCP **`sc-search`**。
   * **强制顺序**：先 `sc_query_plan(question)` → 按返回的 `mcp_steps` 调用 → **仅当** `browser.needed=true` 才开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
   * `path=mcp_only`：答完即停；禁止为「核对」再开 Erkul。缺字段如实说明。
+  * 不要编造库中没有的数据。
   * 工具：`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync wiki`｜`sync aliases`｜`sync zh`。
   * 中文提问：plan / resolve 用原话；浏览器 `search_term` 必须用 plan 给出的英文标准名。

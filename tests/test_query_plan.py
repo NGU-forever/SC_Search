@@ -40,6 +40,33 @@ def test_prices_mcp_only(conn):
     assert p["intent"] == "prices"
     assert p["path"] == "mcp_only"
     assert p["browser"]["needed"] is False
+    assert p["mcp_steps"][-1]["args"]["side"] == "sell"
+
+
+def test_prices_buy_side(conn):
+    p = query_plan(conn, "黄金在哪买")
+    assert p["intent"] == "prices"
+    assert p["mcp_steps"][-1]["args"]["side"] == "buy"
+
+
+def test_loadout_unresolved_no_chinese_search_term(conn):
+    p = query_plan(conn, "怎么配打炮")
+    assert p["intent"] == "loadout_calc"
+    assert p["browser"]["search_term"] == ""
+    assert p["confidence"] in ("low", "medium")
+    for step in p["mcp_steps"]:
+        if step["tool"] == "sc_resolve_name":
+            assert step["args"]["text"] != "怎么配打炮"
+
+
+def test_mining_unresolved_no_chinese_search_term(conn):
+    p = query_plan(conn, "采矿头怎么配")
+    assert p["intent"] == "mining_calc"
+    assert p["browser"]["search_term"] == ""
+    assert p["confidence"] in ("low", "medium")
+    for step in p["mcp_steps"]:
+        if step["tool"] == "sc_resolve_name":
+            assert step["args"]["text"] != "采矿头怎么配"
 
 
 def test_loadout_zh(conn):
