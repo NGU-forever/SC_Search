@@ -24,7 +24,7 @@
   * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc` 先给静态短答，仅当用户要配装结果或明确核对时才按返回的 `browser` 打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
   * **置信度**：以 `sc_answer` 顶层 `confidence` 为准（可与嵌套 `plan.confidence` 不同）。`low`（及无命中字段的 `medium`）时勿擅自开浏览器；若 `follow_ups` 含「要用浏览器核实吗？」，等用户确认再开。
   * **获取通道**：买/价/获取/制造问法若 `evidence.acquisition` 存在，成文须遵循 `shop_buyable`；为 `unknown` 时说明无商店证据与蓝图/池线索，有 `missions` 则写任务线索；`missing` 含 `crafting_recipe` 时明说库无配方/材料、禁止编造。禁止用未出现在证据中的旧店名/标价覆盖（双通道如可买可造武器勿断言「绝对买不到」）。
-  * **短码实体**：口语短码（如 `cq7`）整句 `sc_answer` 若未命中，先 `sc_resolve_name(短码)`；蓝图/制造语境优先 `kind=blueprint`，勿被同名前缀皮肤 item 带偏。
+  * **短码实体**：口语短码（如 `cq7`）整句 `sc_answer` 若未命中，先 `sc_resolve_name(短码)`；蓝图/制造语境优先 `kind=blueprint` 基型（无引号皮肤名），勿被同名前缀皮肤 item/蓝图带偏。俗称 seed：`视差`→Parallax Energy Assault Rifle；`卡拉克`→Carrack。
   * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
   * 不要编造库中没有的数据。
   * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。

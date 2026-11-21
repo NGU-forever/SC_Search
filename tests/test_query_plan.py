@@ -21,6 +21,26 @@ def _seed_ship(db_path: Path) -> None:
     bp = upsert_entity(conn, kind="blueprint", canonical_name="CQ7 Rifle", game_version="4.10.3")
     upsert_alias(conn, bp, "CQ7 Rifle", "en", "manual")
     upsert_alias(conn, bp, "CQ7 步枪", "zh", "manual")
+    fs9_skin = upsert_entity(
+        conn, kind="blueprint", canonical_name='FS-9 "Blacklist" LMG', game_version="4.10.3"
+    )
+    upsert_alias(conn, fs9_skin, 'FS-9 "Blacklist" LMG', "en", "manual")
+    fs9 = upsert_entity(conn, kind="blueprint", canonical_name="FS-9 LMG", game_version="4.10.3")
+    upsert_alias(conn, fs9, "FS-9 LMG", "en", "manual")
+    parallax = upsert_entity(
+        conn,
+        kind="blueprint",
+        canonical_name="Parallax Energy Assault Rifle",
+        game_version="4.10.3",
+    )
+    upsert_alias(conn, parallax, "Parallax Energy Assault Rifle", "en", "manual")
+    upsert_alias(conn, parallax, "视差", "slang", "manual")
+    upsert_alias(conn, parallax, "视差步枪", "slang", "manual")
+    coda = upsert_entity(
+        conn, kind="blueprint", canonical_name="Coda Pistol", game_version="4.10.3"
+    )
+    upsert_alias(conn, coda, "Coda Pistol", "en", "manual")
+    upsert_alias(conn, eid, "卡拉克", "zh", "manual")
     conn.commit()
     conn.close()
 
@@ -107,3 +127,40 @@ def test_shortcode_cq7_blueprint_context_prefers_blueprint(conn):
     assert "blueprint" in kinds
     assert p["entities"][0]["kind"] == "blueprint"
     assert p["entities"][0]["canonical_name"] == "CQ7 Rifle"
+
+
+def test_name_token_parallax_blueprint(conn):
+    # Skin item shares the Parallax prefix; base blueprint must still win.
+    skin_item = upsert_entity(
+        conn,
+        kind="item",
+        canonical_name='Parallax "ArcCorp" Energy Assault Rifle',
+        game_version="4.10.3",
+    )
+    upsert_alias(conn, skin_item, 'Parallax "ArcCorp" Energy Assault Rifle', "en", "manual")
+    conn.commit()
+    p = query_plan(conn, "Parallax 蓝图哪里弄，材料怎么得")
+    assert p["entities"][0]["kind"] == "blueprint"
+    assert p["entities"][0]["canonical_name"] == "Parallax Energy Assault Rifle"
+
+
+def test_slang_shicha_rifle_blueprint(conn):
+    p = query_plan(conn, "视差步枪蓝图怎么获取？制造要什么材料？")
+    assert p["entities"][0]["canonical_name"] == "Parallax Energy Assault Rifle"
+
+
+def test_fs9_prefers_base_lmg_not_blacklist_skin(conn):
+    for q in ("FS-9 蓝图怎么获取，制造材料呢", "FS-9 LMG 蓝图怎么获取，材料怎么得"):
+        p = query_plan(conn, q)
+        assert p["entities"][0]["canonical_name"] == "FS-9 LMG", q
+
+
+def test_coda_name_token_blueprint(conn):
+    p = query_plan(conn, "Coda 蓝图怎么获取，材料怎么得")
+    assert p["entities"][0]["canonical_name"] == "Coda Pistol"
+
+
+def test_kalake_resolves_carrack(conn):
+    p = query_plan(conn, "卡拉克货舱多大")
+    assert p["entities"]
+    assert p["entities"][0]["canonical_name"] == "Carrack"

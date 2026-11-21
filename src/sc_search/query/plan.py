@@ -34,9 +34,44 @@ _SELL_RE = re.compile(r"(卖|哪出|\bsell\b)", re.I)
 _SHORTCODE_RE = re.compile(
     r"(?<![A-Za-z0-9])([A-Za-z]{1,8}\d+[A-Za-z0-9\-]*|[A-Za-z]+\-\d+[A-Za-z0-9]*)(?![A-Za-z0-9])"
 )
+# Letter-only names (Parallax, Coda) — used in blueprint context; kept only if resolve hits.
+_NAME_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]{4,16})(?![A-Za-z0-9])")
 _BLUEPRINT_CTX_RE = re.compile(
     r"(蓝图|制造|制作|配方|材料|获取|crafting|blueprint)",
     re.I,
+)
+_NAME_TOKEN_STOP = frozenset(
+    {
+        "blueprint",
+        "blueprints",
+        "crafting",
+        "craft",
+        "materials",
+        "material",
+        "where",
+        "what",
+        "when",
+        "with",
+        "from",
+        "this",
+        "that",
+        "have",
+        "need",
+        "make",
+        "made",
+        "obtain",
+        "price",
+        "prices",
+        "buy",
+        "sell",
+        "loadout",
+        "rifle",
+        "pistol",
+        "energy",
+        "assault",
+        "weapon",
+        "weapons",
+    }
 )
 
 
@@ -138,14 +173,72 @@ def _extract_shortcodes(question: str) -> list[str]:
     return found
 
 
+def _extract_name_tokens(question: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for m in _NAME_TOKEN_RE.finditer(question or ""):
+        tok = m.group(1)
+        key = tok.lower()
+        if key in _NAME_TOKEN_STOP or key in seen:
+            continue
+        seen.add(key)
+        found.append(tok)
+    return found
+
+
+def _question_tokens(question: str) -> list[str]:
+    return _extract_shortcodes(question) + _extract_name_tokens(question)
+
+
+def _resolve_blueprints_for_token(conn: sqlite3.Connection, token: str) -> list[dict]:
+    """LIKE match blueprints only — avoids item skins crowding out resolve_name top-N."""
+    tok = (token or "").strip()
+    if len(tok) < 2:
+        return []
+    like = f"%{tok}%"
+    rows = conn.execute(
+        """
+        SELECT DISTINCT e.id, e.kind, e.canonical_name, e.slug, e.uuid, e.game_version,
+               COALESCE(a.alias, e.canonical_name) AS matched_alias,
+               COALESCE(a.lang, 'en') AS matched_lang
+        FROM entities e
+        LEFT JOIN aliases a ON a.entity_id = e.id
+        WHERE e.kind = 'blueprint'
+          AND (
+            e.canonical_name LIKE ? COLLATE NOCASE
+            OR a.alias LIKE ? COLLATE NOCASE
+          )
+        ORDER BY length(e.canonical_name) ASC
+        LIMIT 25
+        """,
+        (like, like),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _blueprint_sort_key(entity: dict, tokens: list[str]) -> tuple:
+    name = str(entity.get("canonical_name") or "")
+    lower = name.casefold()
+    skin_penalty = 1 if '"' in name or "“" in name or "”" in name else 0
+    token_rank = 99
+    for i, tok in enumerate(tokens):
+        t = tok.casefold()
+        if lower == t or lower.startswith(t + " ") or lower.startswith(t + "-"):
+            # Prefer exact/base forms over longer skin titles sharing the prefix.
+            token_rank = min(token_rank, i)
+    return (skin_penalty, token_rank, len(name), lower)
+
+
 def _prefer_blueprint_primary(entities: list[dict], question: str) -> list[dict]:
     if not entities or not _BLUEPRINT_CTX_RE.search(question or ""):
         return entities
     bps = [e for e in entities if e.get("kind") == "blueprint"]
     if not bps:
         return entities
+    tokens = _question_tokens(question)
+    bps_sorted = sorted(bps, key=lambda e: _blueprint_sort_key(e, tokens))
     rest = [e for e in entities if e.get("kind") != "blueprint"]
-    return bps + rest
+    return bps_sorted + rest
 
 
 def _resolve_entities(
@@ -167,8 +260,21 @@ def _resolve_entities(
             out.append(_entity_brief(m))
     q = (question or "").strip()
     if q:
-        for tok in _extract_shortcodes(q):
-            for m in resolve_name(conn, tok):
+        tokens = _extract_shortcodes(q)
+        if _BLUEPRINT_CTX_RE.search(q):
+            tokens = tokens + _extract_name_tokens(q)
+        for tok in tokens:
+            hits = resolve_name(conn, tok)
+            if _BLUEPRINT_CTX_RE.search(q):
+                # Merge blueprint-only hits so skins don't crowd out base BPs in top-N.
+                seen_hit = {int(m["id"]) for m in hits}
+                for m in _resolve_blueprints_for_token(conn, tok):
+                    if int(m["id"]) not in seen_hit:
+                        hits.append(m)
+                        seen_hit.add(int(m["id"]))
+            if not hits:
+                continue
+            for m in hits:
                 eid = int(m["id"])
                 if eid in seen:
                     continue
