@@ -164,3 +164,68 @@ def test_kalake_resolves_carrack(conn):
     p = query_plan(conn, "卡拉克货舱多大")
     assert p["entities"]
     assert p["entities"][0]["canonical_name"] == "Carrack"
+
+
+def test_prices_nali_mai_and_zui_pian_yi(conn):
+    al = upsert_entity(conn, kind="commodity", canonical_name="Aluminum", game_version="4.10.3")
+    upsert_alias(conn, al, "铝", "zh", "seed")
+    conn.commit()
+    for q in ("铝哪里买最便宜？", "铝的买入最低价是多少？"):
+        p = query_plan(conn, q)
+        assert p["intent"] == "prices", q
+        assert p["mcp_steps"][-1]["tool"] == "sc_best_prices"
+        assert p["mcp_steps"][-1]["args"]["side"] == "buy"
+        assert any(e["canonical_name"] == "Aluminum" for e in p["entities"]), q
+
+
+def test_prices_nali_mai_sell(conn):
+    qn = upsert_entity(conn, kind="commodity", canonical_name="Quantainium", game_version="4.10.3")
+    upsert_alias(conn, qn, "量子矿", "zh", "seed")
+    conn.commit()
+    p = query_plan(conn, "量子矿哪里卖最贵？")
+    assert p["intent"] == "prices"
+    assert p["mcp_steps"][-1]["args"]["side"] == "sell"
+
+
+def test_ship_buy_price_not_forced_into_commodity_prices(conn):
+    hh = upsert_entity(conn, kind="ship", canonical_name="Aegis Hammerhead", game_version="4.10.3")
+    upsert_alias(conn, hh, "锤头鲨", "zh", "seed")
+    conn.commit()
+    p = query_plan(conn, "锤头鲨游戏里多少钱可以买？")
+    assert p["intent"] == "facts"
+    assert p["entities"][0]["canonical_name"] == "Aegis Hammerhead"
+
+
+def test_mission_list_faction_intent(conn):
+    fac = upsert_entity(
+        conn, kind="faction", canonical_name="Red Wind Linehaul", game_version="4.10.3"
+    )
+    upsert_alias(conn, fac, "红风物流", "zh", "seed")
+    conn.commit()
+    p = query_plan(conn, "红风物流有哪些任务？")
+    assert p["intent"] == "mission_list"
+    assert p["path"] == "mcp_only"
+    assert p["mcp_steps"][-1]["tool"] == "sc_list_missions"
+    assert "Red Wind" in p["mcp_steps"][-1]["args"]["faction"]
+
+
+def test_single_char_zh_alias_embedded(conn):
+    al = upsert_entity(conn, kind="commodity", canonical_name="Aluminum", game_version="4.10.3")
+    upsert_alias(conn, al, "铝", "zh", "seed")
+    # Noise single-char must not beat longer ship slang.
+    hh = upsert_entity(conn, kind="ship", canonical_name="Aegis Hammerhead", game_version="4.10.3")
+    upsert_alias(conn, hh, "大", "zh", "noise")
+    upsert_alias(conn, hh, "锤头鲨", "zh", "seed")
+    conn.commit()
+    p = query_plan(conn, "铝货舱不相关只是解析")
+    assert any(e["canonical_name"] == "Aluminum" for e in p["entities"])
+    p2 = query_plan(conn, "卡拉克货舱多大")
+    assert p2["entities"][0]["canonical_name"] == "Carrack"
+    # Grammar char 大 must not become primary
+    assert p2["entities"][0].get("zh") != "大"
+
+
+def test_fs9_nali_mai_prefers_base_blueprint(conn):
+    p = query_plan(conn, "FS-9轻机枪哪里买？")
+    assert p["entities"][0]["kind"] == "blueprint"
+    assert p["entities"][0]["canonical_name"] == "FS-9 LMG"

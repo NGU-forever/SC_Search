@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from sc_search.query.resolve import _rank_rows, resolve_name
+from sc_search.query.resolve import _KIND_RANK, _rank_rows, resolve_name
 
 ERKUL_CALCULATOR = "https://erkul.games/calculator"
 REGOLITH = "https://regolith.rocks"
@@ -17,7 +17,12 @@ _MINING_RE = re.compile(
     re.I,
 )
 _PRICES_RE = re.compile(
-    r"(价格|报价|哪[买卖出]|买点|卖点|\bbuy\b|\bsell\b|price)",
+    r"(价格|报价|最低价|最高价|最便宜|最贵|哪里买|哪里卖|在哪买|在哪卖|"
+    r"哪[买卖出]|买点|卖点|买入|卖出|多少钱|\bbuy\b|\bsell\b|price)",
+    re.I,
+)
+_MISSION_LIST_RE = re.compile(
+    r"(有哪些任务|哪些任务|任务列表|什么任务|刷什么任务|任务有哪些)",
     re.I,
 )
 _LIVE_RE = re.compile(
@@ -28,8 +33,13 @@ _DOCS_RE = re.compile(
     r"(lore|设定|背景|wiki\s*摘要|是什么来头)",
     re.I,
 )
-_BUY_RE = re.compile(r"(买|\bbuy\b)", re.I)
-_SELL_RE = re.compile(r"(卖|哪出|\bsell\b)", re.I)
+_BUY_RE = re.compile(r"(买|买入|哪里买|在哪买|\bbuy\b)", re.I)
+_SELL_RE = re.compile(r"(卖|卖出|哪里卖|在哪卖|哪出|\bsell\b)", re.I)
+_OBTAIN_CTX_RE = re.compile(
+    r"(哪里买|在哪买|能买到|买得到|多少钱|获取|怎么得|如何得|掉落|奖励|"
+    r"\bbuy\b|\bobtain\b|买)",
+    re.I,
+)
 # Short codes like CQ7, JS-400 (must include a digit to avoid English stopwords).
 _SHORTCODE_RE = re.compile(
     r"(?<![A-Za-z0-9])([A-Za-z]{1,8}\d+[A-Za-z0-9\-]*|[A-Za-z]+\-\d+[A-Za-z0-9]*)(?![A-Za-z0-9])"
@@ -115,12 +125,20 @@ def _entity_brief(m: dict) -> dict:
     return brief
 
 
+# Single-char CJK commodity shorts used in CN community (铝哪里买).
+# Grammar/noise glyphs (大/红/多) are excluded — localization often aliases them.
+_CJK_SINGLE_ALLOW = frozenset("铝铁钨金铜钛钢锡铅锌钴镍镁锂铍银")
+
+
 def _alias_len_ok(alias: str) -> bool:
     a = alias.strip()
-    if len(a) < 2:
+    if not a:
         return False
-    if a.isascii() and len(a) < 3:
-        return False
+    # Keep ASCII shortcodes gated (avoid "at"/"to").
+    if a.isascii():
+        return len(a) >= 3
+    if len(a) == 1:
+        return a in _CJK_SINGLE_ALLOW
     return True
 
 
@@ -136,7 +154,7 @@ def _entities_embedded_in_question(conn: sqlite3.Connection, question: str) -> l
         FROM aliases a
         JOIN entities e ON e.id = a.entity_id
         WHERE (? LIKE '%' || a.alias || '%') COLLATE NOCASE
-          AND length(trim(a.alias)) >= 2
+          AND length(trim(a.alias)) >= 1
         ORDER BY length(a.alias) DESC
         LIMIT 25
         """,
@@ -157,7 +175,22 @@ def _entities_embedded_in_question(conn: sqlite3.Connection, question: str) -> l
             (q,),
         ).fetchall()
         items = [dict(r) for r in rows if _alias_len_ok(str(r["matched_alias"] or ""))]
-    return _rank_rows(items) if items else []
+    if not items:
+        return []
+    # Prefer longer alias hits (卡拉克 > noise), then kind rank.
+    ranked = _rank_rows(items)
+    ranked.sort(
+        key=lambda m: (
+            -len(str(m.get("matched_alias") or "")),
+            _kind_tiebreak(m),
+            str(m.get("canonical_name") or ""),
+        )
+    )
+    return ranked
+
+
+def _kind_tiebreak(m: dict) -> int:
+    return int(_KIND_RANK.get(str(m.get("kind")), 99))
 
 
 def _extract_shortcodes(question: str) -> list[str]:
@@ -229,16 +262,36 @@ def _blueprint_sort_key(entity: dict, tokens: list[str]) -> tuple:
     return (skin_penalty, token_rank, len(name), lower)
 
 
+def _wants_blueprint_prefer(question: str) -> bool:
+    q = question or ""
+    return bool(_BLUEPRINT_CTX_RE.search(q) or _OBTAIN_CTX_RE.search(q))
+
+
 def _prefer_blueprint_primary(entities: list[dict], question: str) -> list[dict]:
-    if not entities or not _BLUEPRINT_CTX_RE.search(question or ""):
+    if not entities or not _wants_blueprint_prefer(question):
         return entities
     bps = [e for e in entities if e.get("kind") == "blueprint"]
     if not bps:
+        # Obtain/buy context: still lift blueprints found only via shortcode merge later;
+        # when items crowd the list, try to surface any blueprint already present.
         return entities
     tokens = _question_tokens(question)
     bps_sorted = sorted(bps, key=lambda e: _blueprint_sort_key(e, tokens))
     rest = [e for e in entities if e.get("kind") != "blueprint"]
     return bps_sorted + rest
+
+
+def _commodity_or_terminal_primary(entities: list[dict]) -> bool:
+    if not entities:
+        return True
+    return entities[0].get("kind") in {"commodity", "terminal"}
+
+
+def _faction_primary(entities: list[dict]) -> dict | None:
+    for e in entities:
+        if e.get("kind") == "faction":
+            return e
+    return None
 
 
 def _resolve_entities(
@@ -260,12 +313,13 @@ def _resolve_entities(
             out.append(_entity_brief(m))
     q = (question or "").strip()
     if q:
+        prefer_bp = _wants_blueprint_prefer(q)
         tokens = _extract_shortcodes(q)
-        if _BLUEPRINT_CTX_RE.search(q):
+        if prefer_bp:
             tokens = tokens + _extract_name_tokens(q)
         for tok in tokens:
             hits = resolve_name(conn, tok)
-            if _BLUEPRINT_CTX_RE.search(q):
+            if prefer_bp:
                 # Merge blueprint-only hits so skins don't crowd out base BPs in top-N.
                 seen_hit = {int(m["id"]) for m in hits}
                 for m in _resolve_blueprints_for_token(conn, tok):
@@ -365,7 +419,34 @@ def query_plan(
             "reason": "配装/DPS 需 Erkul；库无实时计算",
         }
 
-    if _PRICES_RE.search(q):
+    if _MISSION_LIST_RE.search(q):
+        faction = _faction_primary(entities)
+        if faction:
+            fname = str(faction["canonical_name"])
+            # Faction first so answer labels use the contractor, not a color item.
+            ents = [faction] + [e for e in entities if e.get("id") != faction.get("id")]
+            return {
+                "intent": "mission_list",
+                "path": "mcp_only",
+                "confidence": "high",
+                "entities": ents,
+                "mcp_steps": [
+                    *(
+                        [{"tool": "sc_resolve_name", "args": {"text": resolve_text}}]
+                        if resolve_text
+                        else []
+                    ),
+                    {
+                        "tool": "sc_list_missions",
+                        "args": {"faction": fname, "limit": 8},
+                    },
+                ],
+                "browser": _browser_off(),
+                "stop_if": "任务列表已够则不要开浏览器",
+                "reason": "势力任务列表走本地 SCMDB",
+            }
+
+    if _PRICES_RE.search(q) and _commodity_or_terminal_primary(entities):
         commodity = primary or resolve_text
         side = _price_side(q)
         return {

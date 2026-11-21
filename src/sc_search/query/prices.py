@@ -12,6 +12,20 @@ def _pick_entity(matches: list[dict], kind: str) -> dict | None:
     return None
 
 
+def _commodity_candidates(matches: list[dict]) -> list[dict]:
+    seen: set[int] = set()
+    out: list[dict] = []
+    for m in matches:
+        if m.get("kind") != "commodity":
+            continue
+        eid = int(m["id"])
+        if eid in seen:
+            continue
+        seen.add(eid)
+        out.append(m)
+    return out
+
+
 def best_prices(
     conn: sqlite3.Connection,
     commodity: str,
@@ -22,12 +36,12 @@ def best_prices(
     if side not in {"buy", "sell"}:
         raise ValueError("side must be 'buy' or 'sell'")
     matches = resolve_name(conn, commodity)
-    entity = _pick_entity(matches, "commodity")
-    if entity is None:
+    candidates = _commodity_candidates(matches)
+    if not candidates:
         return []
 
     order = "ASC" if side == "buy" else "DESC"
-    sql = f"""
+    base_sql = f"""
         SELECT
           c.canonical_name AS commodity,
           t.canonical_name AS terminal,
@@ -43,13 +57,20 @@ def best_prices(
         WHERE p.commodity_entity_id = ?
           AND p.side = ?
     """
-    params: list[object] = [entity["id"], side]
-    if system:
-        sql += " AND t.canonical_name LIKE ? COLLATE NOCASE"
-        params.append(f"%{system}%")
-    sql += f" ORDER BY p.price {order} LIMIT ?"
-    params.append(limit)
-    return [dict(r) for r in conn.execute(sql, params).fetchall()]
+    # Prefer the spelling/entity that actually has UEX rows (Aluminum vs Aluminium,
+    # Quantainium vs Quantanium).
+    for entity in candidates:
+        sql = base_sql
+        params: list[object] = [entity["id"], side]
+        if system:
+            sql += " AND t.canonical_name LIKE ? COLLATE NOCASE"
+            params.append(f"%{system}%")
+        sql += f" ORDER BY p.price {order} LIMIT ?"
+        params.append(limit)
+        rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
+        if rows:
+            return rows
+    return []
 
 
 def terminal_prices(

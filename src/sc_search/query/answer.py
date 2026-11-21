@@ -6,6 +6,7 @@ import sqlite3
 
 from sc_search.query.entities import entity_facts
 from sc_search.query.freshness import live_game_version
+from sc_search.query.missions import list_missions
 from sc_search.query.plan import query_plan
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.search import search_docs
@@ -118,16 +119,25 @@ def _acquisition_unknown(
     missions: list[dict] | None = None,
     materials: list[dict] | None = None,
     missing: list[str] | None = None,
+    mode: str = "blueprint_reward",
+    hint_zh: str | None = None,
 ) -> dict:
     return {
-        "mode": "blueprint_reward",
+        "mode": mode,
         "shop_buyable": "unknown",
         "pool": pool,
-        "hint_zh": "本地仅见蓝图/奖励记录，未找到商店报价",
+        "hint_zh": hint_zh or "本地仅见蓝图/奖励记录，未找到商店报价",
         "missions": list(missions or []),
         "materials": list(materials or []),
         "missing": list(missing or []),
     }
+
+
+def _draft_shop_unknown(label: str, live: str, src_ver: str | None = None) -> str:
+    return (
+        f"{label} 本地知识库未收录游戏内商店/aUEC 报价，"
+        f"无法确认哪里买或多少钱{_draft_live_suffix(live, src_ver)}。"
+    )
 
 
 def _recipe_materials(conn: sqlite3.Connection, blueprint_entity_id: int) -> list[dict]:
@@ -395,6 +405,8 @@ def _recompute_confidence(
         return "low"
     if intent == "prices":
         return "high" if prices else "low"
+    if intent == "mission_list":
+        return "high" if not missing else "low"
     if intent == "docs":
         return "medium" if docs else "low"
     if intent in {"loadout_calc", "mining_calc"}:
@@ -532,6 +544,103 @@ def answer_question(
             "evidence": evidence,
             "detail_available": False,
             "follow_ups": [],
+            "browser": {"needed": False},
+            "plan": plan,
+        }
+
+    if (
+        _wants_obtain_or_price(question)
+        and primary_kind in {"ship", "item"}
+        and primary
+        and intent == "facts"
+    ):
+        bundle = entity_facts(conn, primary) or {}
+        entity_row = bundle.get("entity") or {}
+        src_ver = entity_row.get("game_version")
+        evidence["acquisition"] = _acquisition_unknown(
+            None,
+            mode="shop_unknown",
+            hint_zh="本地未收录游戏内商店/aUEC 报价",
+            missing=["shop_prices"],
+        )
+        evidence["missing"] = ["shop_prices"]
+        evidence["facts"] = [
+            _slim_fact(f) for f in (bundle.get("facts") or [])[:fact_limit]
+        ]
+        return {
+            "intent": intent,
+            "path": plan["path"],
+            "confidence": "high",
+            "live_game_version": live,
+            "answer_draft": _draft_shop_unknown(label or primary, live, src_ver),
+            "evidence": evidence,
+            "detail_available": bool(evidence["facts"]),
+            "follow_ups": [],
+            "browser": {"needed": False},
+            "plan": plan,
+        }
+
+    if intent == "mission_list":
+        faction = next(
+            (e for e in evidence["entities"] if e.get("kind") == "faction"),
+            None,
+        )
+        fname = str((faction or {}).get("canonical_name") or primary or "")
+        rows = list_missions(conn, faction=fname or None, limit=8) if fname else []
+        evidence["missions"] = [
+            {
+                "canonical_name": r.get("canonical_name"),
+                "title": r.get("title"),
+                "reward_uec": r.get("reward_uec"),
+                "systems": r.get("systems"),
+                "mission_type": r.get("mission_type"),
+            }
+            for r in rows
+        ]
+        if rows:
+            bits = []
+            for r in rows[:5]:
+                title = r.get("title") or r.get("canonical_name")
+                reward = r.get("reward_uec")
+                sys = r.get("systems")
+                extra = []
+                if reward is not None:
+                    extra.append(f"{int(reward)} aUEC")
+                if sys:
+                    extra.append(str(sys))
+                extra_bit = f"（{'，'.join(extra)}）" if extra else ""
+                bits.append(f"{title}{extra_bit}")
+            draft = (
+                f"{label or fname} 相关任务示例：{'；'.join(bits)}"
+                f"{_draft_live_suffix(live)}。"
+            )
+            detail_available = len(rows) > 5
+            if detail_available:
+                follow_ups = ["看更多任务"]
+        else:
+            missing.append("missions")
+            draft = f"本地未找到 {label or fname} 的任务列表。"
+            detail_available = False
+        evidence["missing"] = missing
+        confidence = _recompute_confidence(
+            intent,
+            plan_confidence=plan["confidence"],
+            had_scored_hit=False,
+            has_entity=bool(evidence["entities"]),
+            facts=[],
+            prices=[],
+            docs=[],
+            missing=missing,
+        )
+        return {
+            "intent": intent,
+            "path": plan["path"],
+            "confidence": confidence,
+            "live_game_version": live,
+            "answer_draft": draft,
+            "evidence": evidence,
+            "detail_available": detail_available,
+            "follow_ups": follow_ups,
             "browser": {"needed": False},
             "plan": plan,
         }

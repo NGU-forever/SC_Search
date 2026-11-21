@@ -31,6 +31,9 @@
 | **Star Citizen Wiki API** | `https://api.star-citizen.wiki` | 结构化飞船/物品游戏数据（本项目 `sync scw`） |
 | **汉化组 Localization** | `https://citizenwiki.cn/Localization` · `https://ini.42kit.com/` | 中文 `global.ini` 标准译名（本项目 `sync zh`）；CC BY-NC-SA 4.0 |
 | **CitizenWiki (中文维基)** | `citizenwiki.cn` | 官方/汉化组维护的标准中文名词库、中英文对照、本地化词条与指南 |
+| **星际公民中文Wiki（灰机）** | `https://xjgm.huijiwiki.com/wiki/飞船列表` | 中文飞船译名对照表（别名 seed 扩充参考）；记录于 2026-11-22 |
+| **巴哈姆特 SC 哈啦板** | `https://forum.gamer.com.tw/B.php?bsn=23291` | 繁中社区新手 FAQ / 实操提问源；记录于 2026-11-22 |
+| **Everark 信息站** | `https://everark-sc.com/zh-CN/missions` | 中文任务合约清单与声望参考；记录于 2026-11-22 |
 | **Roberts Space Industries (RSI)** | `robertsspaceindustries.com` | 官方新闻、Patch Notes（补丁说明）、Comm-Link、Spectrum 论坛 |
 | **SC Focus** | `scfocus.org` | 飞船对比、版本改动摘要与入门指南 |
 | **CStone Item Finder** | `finder.cstone.space` | 游戏内物品/装备/武器商店分布速查 |

@@ -328,3 +328,130 @@ def test_cq7_obtain_materials_compiles_mission_and_recipe(conn):
     assert "采矿" in draft or "材料" in draft
     assert "商店不可直接购买" not in draft
     assert r["evidence"].get("missing") == []
+
+
+def test_aluminum_nali_mai_uses_prices(conn):
+    al = upsert_entity(conn, kind="commodity", canonical_name="Aluminum", game_version="4.10.3")
+    upsert_alias(conn, al, "铝", "zh", "seed")
+    # British spelling without prices must not win over Aluminum with prices
+    upsert_entity(conn, kind="commodity", canonical_name="Aluminium", game_version="4.10.3")
+    term = upsert_entity(
+        conn, kind="terminal", canonical_name="Admin - Rod Fuel", game_version="4.10.3"
+    )
+    run = start_run(conn, "uex", "3.24.2")
+    replace_price(
+        conn,
+        commodity_id=al,
+        terminal_id=term,
+        side="buy",
+        price=2504.0,
+        source="uex",
+        game_version="3.24.2",
+        ingest_run_id=run,
+        reported_at="2026-01-01T00:00:00+00:00",
+    )
+    finish_run(conn, run, status="ok", row_count=1, game_version="3.24.2")
+    conn.commit()
+    r = answer_question(conn, "铝哪里买最便宜？")
+    assert r["intent"] == "prices"
+    assert r["confidence"] == "high"
+    assert r["evidence"]["prices"]
+    assert "2504" in r["answer_draft"]
+    assert "Live 4.10.3" in r["answer_draft"]
+    assert "3.24.2" in r["answer_draft"]
+
+
+def test_ship_buy_acquisition_no_shop_price(conn):
+    ship = upsert_entity(
+        conn, kind="ship", canonical_name="Aegis Hammerhead", game_version="4.10.3"
+    )
+    upsert_alias(conn, ship, "锤头鲨", "zh", "seed")
+    conn.commit()
+    r = answer_question(conn, "锤头鲨游戏里多少钱可以买？")
+    acq = r["evidence"].get("acquisition")
+    assert acq is not None
+    assert acq["shop_buyable"] == "unknown"
+    assert acq["mode"] == "shop_unknown"
+    assert "商店" in r["answer_draft"] or "报价" in r["answer_draft"]
+    assert "未找到匹配字段" not in r["answer_draft"]
+    assert r["confidence"] == "high"
+    assert r["browser"]["needed"] is False
+
+
+def test_mission_list_red_wind_draft(conn):
+    fac = upsert_entity(
+        conn, kind="faction", canonical_name="Red Wind Linehaul", game_version="4.10.3"
+    )
+    upsert_alias(conn, fac, "红风物流", "zh", "seed")
+    m = upsert_entity(
+        conn,
+        kind="mission",
+        canonical_name="RedWind_Pyro_Haul_Test",
+        game_version="4.10.3",
+    )
+    run = start_run(conn, "scmdb", "4.10.3")
+    upsert_fact(
+        conn,
+        entity_id=m,
+        key="contractor",
+        value_text="Red Wind Linehaul",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    upsert_fact(
+        conn,
+        entity_id=m,
+        key="reward_uec",
+        value_num=100000.0,
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    upsert_fact(
+        conn,
+        entity_id=m,
+        key="systems",
+        value_text="Pyro",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run,
+    )
+    upsert_alias(conn, m, "大宗货运测试", "zh", "localization")
+    finish_run(conn, run, status="ok", row_count=1, game_version="4.10.3")
+    conn.commit()
+    r = answer_question(conn, "红风物流有哪些任务？")
+    assert r["intent"] == "mission_list"
+    assert r["confidence"] == "high"
+    assert "大宗货运" in r["answer_draft"] or "RedWind" in r["answer_draft"]
+    assert r["evidence"].get("missions")
+
+
+def test_quantanium_spelling_falls_back_to_priced_entity(conn):
+    # Ask with community spelling that has no rows; priced entity is Quantainium.
+    bare = upsert_entity(conn, kind="commodity", canonical_name="Quantanium", game_version="4.10.3")
+    priced = upsert_entity(
+        conn, kind="commodity", canonical_name="Quantainium", game_version="4.10.3"
+    )
+    upsert_alias(conn, bare, "量子矿", "zh", "seed")
+    upsert_alias(conn, priced, "量子矿", "zh", "seed")
+    term = upsert_entity(conn, kind="terminal", canonical_name="Orison TDD", game_version="4.10.3")
+    run = start_run(conn, "uex", "3.24.2")
+    replace_price(
+        conn,
+        commodity_id=priced,
+        terminal_id=term,
+        side="sell",
+        price=170000.0,
+        source="uex",
+        game_version="3.24.2",
+        ingest_run_id=run,
+        reported_at="2026-01-01T00:00:00+00:00",
+    )
+    finish_run(conn, run, status="ok", row_count=1, game_version="3.24.2")
+    conn.commit()
+    r = answer_question(conn, "量子矿哪里卖最贵？")
+    assert r["intent"] == "prices"
+    assert r["evidence"]["prices"]
+    assert r["evidence"]["prices"][0]["commodity"] == "Quantainium"
+    assert "170000" in r["answer_draft"]
