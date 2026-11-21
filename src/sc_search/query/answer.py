@@ -292,7 +292,7 @@ def answer_question(
             )
             src_ver = (bundle.get("entity") or {}).get("game_version")
             if intent == "facts":
-                if picked:
+                if had_scored_hit and picked:
                     top = picked[0]
                     key_label = top.get("key_zh") or _label_fact_key(
                         str(top.get("key") or "")
@@ -334,17 +334,20 @@ def answer_question(
         commodity = (commodity_entity or {}).get("canonical_name") or primary or question
 
         if terminal_name:
-            rows = terminal_prices(conn, terminal_name, side=side)
+            all_rows = terminal_prices(conn, terminal_name, side=side)
             if commodity_entity:
                 cn = str(commodity_entity["canonical_name"])
-                rows = [
+                all_rows = [
                     r
-                    for r in rows
+                    for r in all_rows
                     if str(r.get("commodity") or "").lower() == cn.lower()
                 ]
-            rows = rows[:price_limit]
+            prices_remain = len(all_rows) > price_limit
+            rows = all_rows[:price_limit]
         else:
-            rows = best_prices(conn, commodity, side=side, limit=price_limit)
+            fetched = best_prices(conn, commodity, side=side, limit=price_limit + 1)
+            prices_remain = len(fetched) > price_limit
+            rows = fetched[:price_limit]
         evidence["prices"] = _slim_prices(rows)
         if rows:
             top = rows[0]
@@ -359,8 +362,13 @@ def answer_question(
                     f"{top.get('commodity')} {side} 较优：{top.get('terminal')} "
                     f"约 {top.get('price')} aUEC{ver_suffix}。"
                 )
-            detail_available = True
-            follow_ups = ["看更多终端", "查买入价"] if side == "sell" else ["看更多终端", "查卖出价"]
+            detail_available = prices_remain
+            if prices_remain:
+                follow_ups = (
+                    ["看更多终端", "查买入价"]
+                    if side == "sell"
+                    else ["看更多终端", "查卖出价"]
+                )
         else:
             missing.append("prices")
             target = terminal_name or commodity

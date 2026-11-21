@@ -189,4 +189,4 @@ def test_no_prices_low(conn):
 
 def test_detail_available_false_when_exhausted(conn):
     r = answer_question(conn, "卡拉克厂家", detail_level="full")
-    assert "detail_available" in r
+    assert r["detail_available"] is False
