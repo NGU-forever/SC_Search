@@ -65,5 +65,7 @@
   {"alias": "切口", "target": "Jumptown", "lang": "slang", "kind": "location"},
   {"alias": "黑切", "target": "Jumptown", "lang": "slang", "kind": "location"},
   {"alias": "蓝切", "target": "Jumptown", "lang": "slang", "kind": "location"},
-  {"alias": "跳镇", "target": "Jumptown", "lang": "zh", "kind": "location"}
+  {"alias": "跳镇", "target": "Jumptown", "lang": "zh", "kind": "location"},
+  {"alias": "红枫物流", "target": "Red Wind Linehaul", "lang": "slang", "kind": "faction"},
+  {"alias": "红枫", "target": "Red Wind Linehaul", "lang": "slang", "kind": "faction"}
 ]
