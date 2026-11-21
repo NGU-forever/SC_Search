@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
-from sc_search.query.resolve import resolve_name
+from sc_search.query.resolve import _rank_rows, resolve_name
 
 ERKUL_CALCULATOR = "https://erkul.games/calculator"
 REGOLITH = "https://regolith.rocks"
@@ -43,14 +43,71 @@ def _entity_brief(m: dict) -> dict:
     return brief
 
 
-def _resolve_entities(conn: sqlite3.Connection, texts: list[str]) -> list[dict]:
+def _alias_len_ok(alias: str) -> bool:
+    a = alias.strip()
+    if len(a) < 2:
+        return False
+    if a.isascii() and len(a) < 3:
+        return False
+    return True
+
+
+def _entities_embedded_in_question(conn: sqlite3.Connection, question: str) -> list[dict]:
+    q = (question or "").strip()
+    if not q:
+        return []
+
+    rows = conn.execute(
+        """
+        SELECT DISTINCT e.id, e.kind, e.canonical_name, e.slug, e.uuid, e.game_version,
+               a.alias AS matched_alias, a.lang AS matched_lang
+        FROM aliases a
+        JOIN entities e ON e.id = a.entity_id
+        WHERE (? LIKE '%' || a.alias || '%') COLLATE NOCASE
+          AND length(trim(a.alias)) >= 2
+        ORDER BY length(a.alias) DESC
+        LIMIT 25
+        """,
+        (q,),
+    ).fetchall()
+    items = [dict(r) for r in rows if _alias_len_ok(str(r["matched_alias"] or ""))]
+    if not items:
+        rows = conn.execute(
+            """
+            SELECT e.id, e.kind, e.canonical_name, e.slug, e.uuid, e.game_version,
+                   e.canonical_name AS matched_alias, 'en' AS matched_lang
+            FROM entities e
+            WHERE (? LIKE '%' || e.canonical_name || '%') COLLATE NOCASE
+              AND length(trim(e.canonical_name)) >= 2
+            ORDER BY length(e.canonical_name) DESC
+            LIMIT 25
+            """,
+            (q,),
+        ).fetchall()
+        items = [dict(r) for r in rows if _alias_len_ok(str(r["matched_alias"] or ""))]
+    return _rank_rows(items) if items else []
+
+
+def _resolve_entities(
+    conn: sqlite3.Connection,
+    hint: str | None,
+    question: str,
+) -> list[dict]:
     seen: set[int] = set()
     out: list[dict] = []
-    for t in texts:
+    for t in [hint, question]:
         t = (t or "").strip()
         if not t:
             continue
         for m in resolve_name(conn, t):
+            eid = int(m["id"])
+            if eid in seen:
+                continue
+            seen.add(eid)
+            out.append(_entity_brief(m))
+    q = (question or "").strip()
+    if q:
+        for m in _entities_embedded_in_question(conn, q):
             eid = int(m["id"])
             if eid in seen:
                 continue
@@ -95,10 +152,10 @@ def query_plan(
     q = (question or "").strip()
     hint = (hint_entity or "").strip() or None
 
-    resolve_texts = [t for t in [hint, q] if t]
-    entities = _resolve_entities(conn, resolve_texts)
+    entities = _resolve_entities(conn, hint, q)
     primary = entities[0]["canonical_name"] if entities else (hint or "")
 
+    # Overlapping 怎么配 + mining terms must prefer mining_calc (e.g. 鼹鼠怎么配激光头).
     if _MINING_RE.search(q):
         return {
             "intent": "mining_calc",
