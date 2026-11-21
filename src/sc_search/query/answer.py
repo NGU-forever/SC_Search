@@ -47,18 +47,31 @@ def _pick_facts(facts: list[dict], question: str, limit: int) -> list[dict]:
     for f in facts:
         key = str(f.get("key") or "").lower()
         score = 0
-        if any(k in key or k in q for k in _CARGO_KEYS) and (
-            "cargo" in key or "货舱" in q or "cargo" in q
-        ):
+        if any(k in key for k in _CARGO_KEYS) or "cargo" in key:
             score += 10
+            if "货舱" in q or "cargo" in q:
+                score += 3
         if key in q or any(tok and tok in key for tok in q.split() if len(tok) > 1):
             score += 3
         if score:
             scored.append((score, f))
     scored.sort(key=lambda x: -x[0])
-    picked = [f for _, f in scored[:limit]]
-    if not picked:
-        picked = facts[:limit]
+    picked: list[dict] = []
+    seen: set[int] = set()
+    for _, f in scored:
+        if len(picked) >= limit:
+            break
+        fid = id(f)
+        if fid not in seen:
+            picked.append(f)
+            seen.add(fid)
+    for f in facts:
+        if len(picked) >= limit:
+            break
+        fid = id(f)
+        if fid not in seen:
+            picked.append(f)
+            seen.add(fid)
     return [
         {
             "key": f.get("key"),

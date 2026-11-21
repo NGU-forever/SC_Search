@@ -32,6 +32,25 @@ def _seed(db_path: Path) -> None:
         game_version="4.10.3",
         ingest_run_id=run,
     )
+    for key, value_num, value_text in (
+        ("length", 155.0, None),
+        ("beam", 51.0, None),
+        ("height", 25.0, None),
+        ("mass", 3500.0, None),
+        ("crew", None, "6"),
+        ("hp", 12000.0, None),
+    ):
+        upsert_fact(
+            conn,
+            entity_id=ship,
+            key=key,
+            value_num=value_num,
+            value_text=value_text,
+            unit=None,
+            source="scw",
+            game_version="4.10.3",
+            ingest_run_id=run,
+        )
     gold = upsert_entity(conn, kind="commodity", canonical_name="Gold", game_version="4.10.3")
     upsert_alias(conn, gold, "黄金", "zh", "manual")
     term = upsert_entity(conn, kind="terminal", canonical_name="Lorville", game_version="4.10.3")
@@ -72,7 +91,8 @@ def test_facts_cargo_brief(conn):
 def test_facts_full_thicker(conn):
     brief = answer_question(conn, "卡拉克", detail_level="brief")
     full = answer_question(conn, "卡拉克", detail_level="full")
-    assert len(full["evidence"]["facts"]) >= len(brief["evidence"]["facts"])
+    assert len(brief["evidence"]["facts"]) == 5
+    assert len(full["evidence"]["facts"]) > len(brief["evidence"]["facts"])
 
 
 def test_prices_sell(conn):
