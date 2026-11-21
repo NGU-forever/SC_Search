@@ -27,6 +27,8 @@ def _seed(db_path: Path) -> None:
         reported_at="2026-01-01T00:00:00+00:00",
     )
     finish_run(conn, run_id, status="ok", row_count=1, game_version="4.10.3")
+    ship = upsert_entity(conn, kind="ship", canonical_name="Carrack", game_version="4.10.3")
+    upsert_alias(conn, ship, "卡拉克", "zh", "manual")
     conn.commit()
     conn.close()
 
@@ -50,3 +52,8 @@ def test_mcp_handlers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fresh = json.loads(mcp_server.handlers["sc_data_freshness"]("uex"))
     assert fresh["ok"] is True
     assert fresh["data"][0]["status"] == "ok"
+
+    plan = json.loads(mcp_server.handlers["sc_query_plan"]("卡拉克怎么配打炮"))
+    assert plan["ok"] is True
+    assert plan["data"]["intent"] == "loadout_calc"
+    assert plan["data"]["browser"]["search_term"] == "Carrack"

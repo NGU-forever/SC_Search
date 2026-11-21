@@ -11,6 +11,7 @@ from sc_search.paths import get_db_path
 from sc_search.query.entities import entity_facts
 from sc_search.query.freshness import data_freshness
 from sc_search.query.prices import best_prices, terminal_prices
+from sc_search.query.plan import query_plan
 from sc_search.query.resolve import resolve_name
 from sc_search.query.search import search_docs
 
@@ -125,6 +126,20 @@ def sc_entity_facts(name_or_id: str) -> str:
 
 
 @mcp.tool()
+def sc_query_plan(question: str, hint_entity: str | None = None) -> str:
+    """Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape)."""
+    try:
+        conn = open_db()
+        try:
+            data = query_plan(conn, question, hint_entity=hint_entity)
+            return _ok(data)
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
 def sc_search_docs(query: str, limit: int = 5) -> str:
     """Full-text search Star Citizen wiki extracts stored locally (FTS5)."""
     try:
@@ -142,6 +157,7 @@ def sc_search_docs(query: str, limit: int = 5) -> str:
 
 # Expose undecorated handlers for unit tests
 handlers = {
+    "sc_query_plan": sc_query_plan,
     "sc_resolve_name": sc_resolve_name,
     "sc_best_prices": sc_best_prices,
     "sc_terminal_prices": sc_terminal_prices,
