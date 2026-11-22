@@ -1,4 +1,5 @@
 .env
+config/.env
 venv/
 .venv/
 __pycache__/
@@ -10,3 +11,6 @@ build/
 data/*.sqlite
 data/raw/
 .DS_Store
+
+# Local MCP paths (use .cursor/mcp.json.example)
+.cursor/mcp.json

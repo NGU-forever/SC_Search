@@ -75,7 +75,7 @@ def test_init_creates_core_tables(tmp_path: Path):
 
 - [ ] **Step 2: Run test — expect FAIL (import/module missing)**
 
-Run: `cd /Users/xiongtianyu/Desktop/SC_Search && python -m pytest tests/test_db_init.py -v`  
+Run: `python -m pytest tests/test_db_init.py -v`  
 Expected: FAIL (no package)
 
 - [ ] **Step 3: Implement skeleton**
@@ -236,9 +236,9 @@ Tool names: `sc_resolve_name`, `sc_best_prices`, `sc_terminal_prices`, `sc_data_
     "sc-search": {
       "command": "python",
       "args": ["-m", "sc_search.mcp_server"],
-      "cwd": "/Users/xiongtianyu/Desktop/SC_Search",
+      "cwd": "/绝对路径/SC_Search",
       "env": {
-        "SC_SEARCH_DB": "/Users/xiongtianyu/Desktop/SC_Search/data/sc_knowledge.sqlite"
+        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite"
       }
     }
   }

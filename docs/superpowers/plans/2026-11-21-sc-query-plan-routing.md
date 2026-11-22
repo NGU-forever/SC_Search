@@ -122,7 +122,7 @@ Remove the bogus 大白鲨 alias line from `_seed_ship` when implementing (Carra
 
 - [ ] **Step 2: Run tests — expect fail**
 
-Run: `cd /Users/xiongtianyu/Desktop/SC_Search && python -m pytest tests/test_query_plan.py -v`
+Run: `python -m pytest tests/test_query_plan.py -v`
 
 Expected: `ImportError` or `ModuleNotFoundError` for `sc_search.query.plan`.
 

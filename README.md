@@ -85,7 +85,13 @@ python -m sc_search.ingest status
 
 ### 4. 接到 Cursor
 
-1. 打开或编辑项目里的 `.cursor/mcp.json`。**请用本机绝对路径**（相对 `cwd: "."` 在部分宿主里会起不来；不要把 `.venv/bin/python` resolve 成系统 Python）：
+1. 复制示例 MCP 配置并改成**本机绝对路径**（相对 `cwd: "."` 在部分宿主里会起不来；不要把 `.venv/bin/python` resolve 成系统 Python）：
+
+```bash
+cp .cursor/mcp.json.example .cursor/mcp.json
+```
+
+编辑 `.cursor/mcp.json`（该文件已被 git 忽略，勿提交本机路径）：
 
 ```json
 {
@@ -209,5 +215,18 @@ python -m sc_search.ingest sync aliases
 - 站点清单：[`SOURCES.md`](SOURCES.md)
 - 实战技巧沉淀：[`TIPS.md`](TIPS.md)
 - 设计说明：[`docs/superpowers/specs/2026-11-21-sc-knowledge-sqlite-design.md`](docs/superpowers/specs/2026-11-21-sc-knowledge-sqlite-design.md)
+
+---
+
+## 许可证
+
+本仓库**代码与自有文档**以 [MIT License](LICENSE) 发布。
+
+第三方数据需单独遵守其原许可（同步到本地库时不会随本仓库分发 SQLite 数据）：
+
+| 来源 | 用途 | 许可要点 |
+| :--- | :--- | :--- |
+| [汉化组 global.ini](https://citizenwiki.cn/Localization) | `sync zh` 标准中文译名 | **CC BY-NC-SA 4.0**，仅个人非商用 |
+| UEX / SCMDB / Star Citizen Wiki 等 | 物价、任务、飞船参数、摘要 | 以各站点条款为准；本工具仅作个人游戏辅助 |
 
 本项目与 Cloud Imperium Games / RSI 无官方关联；数据来自社区站点，仅供个人学习与游戏辅助。
