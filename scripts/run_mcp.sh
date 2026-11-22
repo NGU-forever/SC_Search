@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch sc-search MCP over stdio. Resolves repo root from this script
-# so Cursor/T3 do not need a correct relative cwd or resolved venv symlink.
+# so MCP hosts do not need a correct relative cwd or resolved venv symlink.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PY="$ROOT/.venv/bin/python"

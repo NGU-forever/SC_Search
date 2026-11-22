@@ -937,7 +937,8 @@ def answer_question(
                     f"{label} 配装/计算需 {site}。"
                     f"{static}"
                     "本地只能给静态参数；Agent 可先据静态参数推理建议，"
-                    "要精确 DPS/破矿模拟再说，确认后打开工具站。"
+                    "要精确 DPS/破矿模拟再说，确认后打开工具站；"
+                    "打开并摘要后请把浏览器留在会话里（leave_open），方便用户自己继续改。"
                 )
                 if guide_links:
                     draft += "\n参考：\n" + guide_links

@@ -17,7 +17,7 @@ from sc_search.query.resolve import resolve_name
 from sc_search.query.missions import list_missions
 from sc_search.query.search import search_docs
 
-# Pin to MCP Python SDK 1.x FastMCP: Cursor/T3 tool discovery is more reliable
+# Pin to MCP Python SDK 1.x FastMCP: host tool discovery is more reliable
 # than the 2.x MCPServer API (which often surfaces as "live tool discovery" failure).
 mcp = FastMCP("sc-search")
 

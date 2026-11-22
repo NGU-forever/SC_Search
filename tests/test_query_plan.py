@@ -104,6 +104,8 @@ def test_loadout_zh(conn):
     assert p["browser"]["start_url"] == "https://erkul.games/calculator"
     assert p["browser"]["search_term"] == "Carrack"
     assert p["browser"]["max_actions"] == 8
+    assert p["browser"].get("leave_open") is True
+    assert p["browser"].get("handoff_to_user") is True
 
 
 def test_loadout_en(conn):

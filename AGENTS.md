@@ -108,7 +108,9 @@
 ## 6. 浏览器交互与自动化规范
 
 * **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算、打开推荐教程或明确要求核对时开浏览器**；先据本地证据 LLM 深度整理成文并列出 `browser.resources`，确认后再开。`confidence=high` 本地命中题不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
-* **剧本**：只用返回里的 `start_url`（或用户点名的 `resources[].url`）；配装 `search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表 → **关闭标签**。
+* **剧本**：只用返回里的 `start_url`（或用户点名的 `resources[].url`）；配装 `search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表。
+* **交给用户继续改（Erkul / 可交互工具站）**：若 `browser.leave_open=true`（配装 Erkul、采矿计算站等默认如此），Agent **提取摘要后不要关标签**；把浏览器面板留在当前会话里并对用户可见，明确说「页面还开着，你可以直接在上面改配装」。答完禁止主动关闭该标签；用户明确说关掉或换站时再关。
+* **可关标签的例外**：纯一次性核对、打开的是不可交互的搜索页/说明文，且 `leave_open` 未设为 true 时，可在提取后关闭。
 * **禁止**：`/auth`、`/settings`；同一题未在 plan/`sc_answer` 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词；把 B 站搜索页内容编造为库内数值。
-* **失败降级**：超时或失败时，用已有 MCP facts / guides / `sc_answer` 推理草稿答静态部分，并标明「配装/DPS/教程页未取到」。
-* 需要浏览器自动化时，优先 `ego-browser`（ego lite），但仍须服从上述门禁与剧本。
+* **失败降级**：超时或失败时，用已有 MCP facts / guides / `sc_answer` 推理草稿答静态部分，并标明「配装/DPS/教程页未取到」；若已打开且 `leave_open`，仍尽量把页面留给用户。
+* 需要浏览器自动化时，优先会话内可展示给用户的预览浏览器（否则 `ego-browser`），仍须服从上述门禁与剧本。

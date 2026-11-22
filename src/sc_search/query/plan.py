@@ -410,6 +410,9 @@ def _browser_erkul(search_term: str) -> dict:
         "extract": ["selected ship", "DPS summary", "shield / power notes"],
         "do_not": ["open /auth", "/settings", "wander other sites first"],
         "wait_confirm": True,
+        # After Agent extract: keep tab visible so the user can keep editing loadout.
+        "leave_open": True,
+        "handoff_to_user": True,
     }
 
 
@@ -426,6 +429,8 @@ def _browser_mining(search_term: str) -> dict:
         "extract": ["laser / module setup", "instability / resistance notes"],
         "do_not": ["open /auth", "/settings", "wander other sites first"],
         "wait_confirm": True,
+        "leave_open": True,
+        "handoff_to_user": True,
     }
 
 
