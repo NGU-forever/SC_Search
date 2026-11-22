@@ -50,4 +50,4 @@ Write-Host "==> 同步完成，最近状态："
 Invoke-Ingest status
 
 Write-Host ""
-Write-Host "完成。请在 Cursor 中重载 MCP（sc-search）后再提问。"
+Write-Host "完成。请在豆包（或其它 MCP 客户端）中启用 / 重载 sc-search 后再提问。"

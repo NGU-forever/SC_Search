@@ -96,6 +96,13 @@ python -m sc_search.ingest status
 .venv/bin/python -m sc_search.mcp_server
 ```
 
+```powershell
+# Windows PowerShell
+.\scripts\run_mcp.ps1
+# 或
+.\.venv\Scripts\python.exe -m sc_search.mcp_server
+```
+
 能挂起等待（stdio）说明服务正常，用 `Ctrl+C` 结束后再去豆包里配。
 
 2. 打开豆包 → **技能 · 连接器 · 伙伴**（或「插件 · 技能 · 伙伴」）→ **新建** → **新建自定义连接器**，按下面填写：
@@ -104,11 +111,11 @@ python -m sc_search.ingest status
 | :--- | :--- |
 | 服务器名称 | `sc-search` |
 | 传输类型 | **STDIO** |
-| 命令 | 本机 venv 的 Python **绝对路径**，例如 `/绝对路径/SC_Search/.venv/bin/python`（Windows：`...\SC_Search\.venv\Scripts\python.exe`） |
+| 命令 | **绝对路径**：macOS/Linux 用 `/绝对路径/SC_Search/.venv/bin/python`；Windows 用 `C:\绝对路径\SC_Search\.venv\Scripts\python.exe` |
 | 参数 | 逐项添加：`-m`、`sc_search.mcp_server` |
-| 环境变量 | `SC_SEARCH_DB` = `/绝对路径/SC_Search/data/sc_knowledge.sqlite`；`PYTHONPATH` = `/绝对路径/SC_Search/src`（可选，若用 `pip install -e .` 且已激活同环境，有时可不设） |
+| 环境变量 | `SC_SEARCH_DB` = 数据库绝对路径（Windows 例：`C:\绝对路径\SC_Search\data\sc_knowledge.sqlite`）；`PYTHONPATH` = `...\SC_Search\src`（可选，`pip install -e .` 后常可不设） |
 
-更省事：命令填仓库里的 `scripts/run_mcp.sh`（先 `chmod +x`），参数留空；脚本会自己解析仓库根与数据库路径。Windows 可继续用上面的 `python.exe` + `-m` 方式。
+更省事：命令改填启动脚本、参数留空——macOS/Linux：`scripts/run_mcp.sh`（先 `chmod +x`）；Windows：`scripts\run_mcp.ps1`（若豆包要求 `.exe`/解释器，命令填 `powershell.exe`，参数填 `-File`、`C:\绝对路径\SC_Search\scripts\run_mcp.ps1`）。
 
 3. 保存后确认连接器已启用；新建**工作任务**，运行位置选 **本地电脑**，在连接器里勾选 `sc-search`。若首次提示运行失败，在连接器列表里点一次「重新启动」。
 
@@ -202,9 +209,9 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 4. 终端自检：
 
 ```bash
-./scripts/run_mcp.sh
-# 或
-.venv/bin/python -m sc_search.mcp_server
+./scripts/run_mcp.sh          # macOS / Linux
+# .\scripts\run_mcp.ps1       # Windows
+# 或 .venv/.../python -m sc_search.mcp_server
 ```
 
 能启动（stdio 等待）说明服务本身正常，剩下是客户端重载 / 重新启用连接器。
