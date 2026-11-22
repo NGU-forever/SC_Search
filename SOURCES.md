@@ -10,6 +10,7 @@
 
 | 网站名称 | 域名 / URL | 主要用途 / 领域 | 记录时间 | 备注 |
 | :--- | :--- | :--- | :--- | :--- |
+| **豆包 / 豆包工作** | `https://www.doubao.com/` · [自定义连接器文档](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins) | 推荐 MCP 宿主：桌面端 STDIO 自定义连接器接入本仓库 `sc-search` | 2026-11-23 | 用户指定：开源 README 以豆包为默认 AI 客户端 |
 | **SCMDB** | `https://scmdb.net` | 制造/蓝图（Blueprint）数据库、配方材料明细、目标原料刷取指南（Target Farming） | 2026-11-17 | 用户分享：工业制造与蓝图核心工具站 |
 | **Regolith** | `https://regolith.rocks` | 采矿综合数据平台、激光头与模块破矿阻力/不稳定度计算、精炼方案产出模拟 | 2026-11-17 | 用户分享：采矿配装与破矿核心计算站 |
 | **RedMonster Gaming** | `https://redmonstergaming.com` | 权威采矿速查表（Mining Cheat Sheets）、矿物折射率图谱、精炼批次记账模板 | 2026-11-17 | 用户分享：矿工速查图谱与参考手册 |

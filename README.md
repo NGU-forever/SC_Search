@@ -1,6 +1,6 @@
 # SC Search — 星际公民本地问答助手
 
-在 Cursor（或其它支持 MCP 的 AI 客户端）里，用**本地数据库**快速查《星际公民》物价、任务/蓝图、飞船参数和中英俗称，不必每次都翻网页。
+在 [豆包](https://www.doubao.com/)（豆包工作）或其它支持 MCP 的 AI 客户端里，用**本地数据库**快速查《星际公民》物价、任务/蓝图、飞船参数和中英俗称，不必每次都翻网页。
 
 适合：边玩边问「黄金哪卖贵」「大白鲨载货多少」「这个任务给什么蓝图」这类事实问题。
 
@@ -12,7 +12,7 @@
 | :--- | :--- |
 | 电脑 | macOS / Windows / Linux 均可 |
 | Python | **3.11 或更高** |
-| AI 客户端 | 推荐 [Cursor](https://cursor.com)，需能配置 MCP |
+| AI 客户端 | 推荐 [豆包](https://www.doubao.com/)（桌面端「豆包工作」，支持自定义 MCP 连接器）；也可用 Cursor 等任意 STDIO MCP 客户端 |
 | UEX 账号（可选） | 要查**实时跑商物价**时需要；只查任务/飞船/Wiki 可不配 |
 
 ---
@@ -83,41 +83,53 @@ python -m sc_search.ingest sync zh                  # 汉化组标准中文译�
 python -m sc_search.ingest status
 ```
 
-### 4. 接到 Cursor
+### 4. 接到豆包（推荐）
 
-1. 复制示例 MCP 配置并改成**本机绝对路径**（相对 `cwd: "."` 在部分宿主里会起不来；不要把 `.venv/bin/python` resolve 成系统 Python）：
+豆包桌面端「豆包工作」支持自定义 **STDIO** MCP；自定义连接器仅在**本地电脑**任务里可用（不要选云电脑）。
+
+1. 先确认本机能启动 MCP（仓库根目录）：
+
+```bash
+# macOS / Linux
+./scripts/run_mcp.sh
+# 或
+.venv/bin/python -m sc_search.mcp_server
+```
+
+能挂起等待（stdio）说明服务正常，用 `Ctrl+C` 结束后再去豆包里配。
+
+2. 打开豆包 → **技能 · 连接器 · 伙伴**（或「插件 · 技能 · 伙伴」）→ **新建** → **新建自定义连接器**，按下面填写：
+
+| 字段 | 填写 |
+| :--- | :--- |
+| 服务器名称 | `sc-search` |
+| 传输类型 | **STDIO** |
+| 命令 | 本机 venv 的 Python **绝对路径**，例如 `/绝对路径/SC_Search/.venv/bin/python`（Windows：`...\SC_Search\.venv\Scripts\python.exe`） |
+| 参数 | 逐项添加：`-m`、`sc_search.mcp_server` |
+| 环境变量 | `SC_SEARCH_DB` = `/绝对路径/SC_Search/data/sc_knowledge.sqlite`；`PYTHONPATH` = `/绝对路径/SC_Search/src`（可选，若用 `pip install -e .` 且已激活同环境，有时可不设） |
+
+更省事：命令填仓库里的 `scripts/run_mcp.sh`（先 `chmod +x`），参数留空；脚本会自己解析仓库根与数据库路径。Windows 可继续用上面的 `python.exe` + `-m` 方式。
+
+3. 保存后确认连接器已启用；新建**工作任务**，运行位置选 **本地电脑**，在连接器里勾选 `sc-search`。若首次提示运行失败，在连接器列表里点一次「重新启动」。
+
+也可参考官方说明：[豆包工作 · 插件 / 自定义连接器](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins)。
+
+<details>
+<summary>备用：Cursor 等 mcp.json 客户端</summary>
 
 ```bash
 cp .cursor/mcp.json.example .cursor/mcp.json
 ```
 
-编辑 `.cursor/mcp.json`（该文件已被 git 忽略，勿提交本机路径）：
+编辑 `.cursor/mcp.json`（已被 git 忽略，勿提交本机路径），把其中的绝对路径改成你的仓库路径后，在客户端重载 MCP。也可把 `command` 换成 `scripts/run_mcp.sh`。
 
-```json
-{
-  "mcpServers": {
-    "sc-search": {
-      "command": "/绝对路径/SC_Search/.venv/bin/python",
-      "args": ["-m", "sc_search.mcp_server"],
-      "cwd": "/绝对路径/SC_Search",
-      "env": {
-        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite",
-        "PYTHONPATH": "/绝对路径/SC_Search/src"
-      }
-    }
-  }
-}
-```
-
-也可改用 `scripts/run_mcp.sh`（脚本内自解析仓库根）。Windows：`command` 用 `.venv\\Scripts\\python.exe`，`cwd` 用项目根绝对路径。
-
-2. 在 Cursor 里**重载 MCP / 重启 Agent**，确认出现服务器 **`sc-search`**。
+</details>
 
 ### 5. 开始提问
 
 回答链路：Agent 理解意图与槽位 → `sc-search` MCP 检索证据 → Agent 依据证据成文（简单题可直接 `sc_answer`）。
 
-在对话里直接问即可。Agent 应优先调用本项目的工具，例如：
+在豆包对话里直接问即可（建议显式选中 `sc-search` 连接器）。Agent 应优先调用本项目的工具，例如：
 
 | 你想问的 | 大致会用到的工具 |
 | :--- | :--- |
@@ -184,9 +196,9 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 放在 `config/.env`，已被 git 忽略，不要发到聊天或公开仓库。
 
 **Q：MCP 里看不到 sc-search / 发现失败？**  
-1. 确认 `.cursor/mcp.json` 用的是**绝对路径**的 `.venv/bin/python` 与项目 `cwd`（见上文）。  
-2. 依赖需为 **MCP Python SDK 1.x**（`mcp>=1.1,<2`，FastMCP）；2.x 的 `MCPServer` 在 Cursor/T3 上常会「live tool discovery」失败。  
-3. 在 Cursor / T3 里**重载 MCP**或新开一条 Agent 线程。  
+1. **豆包**：确认传输类型是 STDIO、命令为 Python/脚本的**绝对路径**、任务环境是**本地电脑**，连接器已启用；失败时点「重新启动」。  
+2. **Cursor 等**：确认 `.cursor/mcp.json` 用的是绝对路径的 `.venv/bin/python`（或 `run_mcp.sh`）。  
+3. 依赖需为 **MCP Python SDK 1.x**（`mcp>=1.1,<2`，FastMCP）；2.x 在部分宿主上会「live tool discovery」失败。  
 4. 终端自检：
 
 ```bash
@@ -195,7 +207,7 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 .venv/bin/python -m sc_search.mcp_server
 ```
 
-能启动（stdio 等待）说明服务本身正常，剩下是宿主重载。
+能启动（stdio 等待）说明服务本身正常，剩下是客户端重载 / 重新启用连接器。
 
 **Q：查询结果是空的？**  
 先跑 `python -m sc_search.ingest status`，确认对应源是 `ok`。空库时先 `init` 再 `sync`。
