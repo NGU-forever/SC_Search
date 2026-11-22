@@ -14,3 +14,7 @@ data/raw/
 
 # Local MCP paths (use .cursor/mcp.json.example)
 .cursor/mcp.json
+
+# Keep local; do not publish
+TIPS.md
+docs/superpowers/

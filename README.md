@@ -185,7 +185,7 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 **仍建议开网页 / 游戏内确认的：**
 
 - Erkul 精细配装与 DPS
-- 采矿阻力、激光头计算（Regolith 等）
+- 采矿阻力、激光头计算
 - Spectrum 论坛、需登录的官方内容
 - 中文维基长文（`citizenwiki.cn` 对自动程序常有 Cloudflare 拦截；标准译名已用汉化组 ini 覆盖）
 
@@ -232,8 +232,6 @@ python -m sc_search.ingest sync aliases
 
 - 项目规则与检索习惯：[`AGENTS.md`](AGENTS.md)
 - 站点清单：[`SOURCES.md`](SOURCES.md)
-- 实战技巧沉淀：[`TIPS.md`](TIPS.md)
-- 设计说明：[`docs/superpowers/specs/2026-11-21-sc-knowledge-sqlite-design.md`](docs/superpowers/specs/2026-11-21-sc-knowledge-sqlite-design.md)
 
 ---
 
