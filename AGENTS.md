@@ -1,116 +1,12 @@
-# 项目规则 (Project Rules) - 星际公民 / Star Citizen
+# SC Search — Agent 入口
 
-本工作区（Workspace）为专注于游戏 **《星际公民》（Star Citizen，简称 SC）** 的专属项目。在处理本工作区内的所有对话、任务、代码、文档及外部信息交互时，必须严格遵守以下规则：
+本工作区默认在 **《星际公民》（Star Citizen / SC）** 语境下工作。
 
----
+回答事实类问题前，**必须先阅读并按** [ORCHESTRATION.md](ORCHESTRATION.md) **执行**（理解 → 检索 → 成文 → 可选浏览器）。机器可读检索契约见 [`src/sc_search/query/intent_tools.py`](src/sc_search/query/intent_tools.py) 的 `INTENT_TOOLS`。
 
-## 1. 检索与搜索强制规范 (Search Protocol)
+硬约束摘要：
 
-* **必须附带游戏名称**：
-  * 在调用任何外部搜索工具（如 `search_web`）或查找资料时，查询语句（query）**必须包含** `星际公民`、`Star Citizen` 或明确的缩写 `SC`。
-  * **严禁发起脱离游戏上下文的泛化搜索**。
-    * *错误示例*：`"Carrack best loadout"`、`"Bit Zero 33000"`、`"Pyro IV locations"`
-    * *正确示例*：`"Star Citizen" "Carrack" loadout`、`"星际公民" "Bit Zero" 33000`、`"Star Citizen" "Pyro" asteroid bases`
-* **中英文混合检索**：
-  * 《星际公民》的官方资料、Spectrum 论坛、Reddit 以及 Erkul/SCWiki 多为英文，而国内社区（贴吧、B站等）多用中文俗称。搜索时根据需求灵活组合中英文术语以获取最准确和最新的信息。
-* **中文数据检索与 Wiki 对照前置规范 (Chinese Terminology Pre-lookup Protocol)**：
-  * **先查 Wiki 对照，再搜中文数据**：当需要查找国内中文平台（B站、贴吧、小黑盒等）或中文网站上的数据与攻略时，**严禁使用自行直译或模糊推测的中文词搜索**。
-  * **前置标准映射**：必须先从《星际公民》中文 Wiki（如 `citizenwiki.cn`）中对照确认官方/汉化组统一的标准中英文名称（如飞船名、配件名、任务名、势力名、地点名）。
-  * 在确认标准中文译名与社区常用俗称后，再携带规范名称深入中文网站检索，确保搜索命中率与数据准确性。
-* **优先从已记录的站点检索 (Priority Sources)**：
-  * 检索时优先查阅并在可能时使用 [SOURCES.md](SOURCES.md) 中记录的用户分享站点及核心工具站，确保信息的权威性与契合度。
-* **本地知识库 MCP（优先）**：
-  * 涉及物价、终端、货物/飞船名称、任务/蓝图、Wiki 摘要、数据新鲜度等**事实类**问题，优先调用本项目 MCP **`sc-search`**。
-  * **浏览器门禁**：`path=mcp_only` 且 `confidence=high` → 禁止开浏览器；`loadout_calc`/`mining_calc`/`howto`/`client_help`/`earn_meta`/`pledge_meta`/`event_guide`/`trade_route`/`ship_shop` 先给本地证据+推理短答（及 `browser.resources` 外链），仅当用户要精确计算/逐步核对或明确说打开教程时才按返回的 `browser`（`wait_confirm`）打开；`confidence=low` 不默认连开浏览器。禁止先 WebSearch / 先开 Erkul 再查库。
-  * **置信度**：以 `sc_answer` 顶层 `confidence` 为准（可与嵌套 `plan.confidence` 不同）。`low`（及无命中字段的 `medium`）时勿擅自开浏览器；若 `follow_ups` 含「要用浏览器核实吗？」或「要用浏览器打开推荐教程吗？」，等用户确认再开。
-  * **一律 LLM 深度整理成文**（有数据时，不区分「硬答/指南」）：
-    * `sc_answer` / 其它 MCP 返回的 `answer_draft`、`evidence`、`reasoning_hint`/`【供 Agent …】`、外链只是**证据包与脚手架**，不是最终唯一答案。
-    * 只要证据非空：Agent 必须结合这些数据做**深度整理**——归纳结论、对照字段、分点/小表、版本与来源、对玩家有用的操作含义与注意点；可引用多条 evidence（价、参数、任务、guides）交叉说明。
-    * **事实边界不变**：数字、店名、任务名、材料等只能来自证据；禁止编造库外店价、掉率、刷新点、时薪、矿点；证据缺失处明确说「本地未收录」。
-    * 禁止只贴链接或原样甩 JSON；指南类同样要整理成可读中文。
-  * **获取通道**：买/价/获取/制造问法若 `evidence.acquisition` 存在，成文须遵循 `shop_buyable`；为 `unknown` 时说明无商店证据与蓝图/池线索，有 `missions`/`materials` 则引用；`missing` 含 `crafting_recipe` 或草稿标明矿点未收录时明说、禁止编造。禁止用未出现在证据中的旧店名/标价覆盖（双通道勿断言「绝对买不到」）。
-  * **短码实体**：口语短码（如 `cq7`）整句 `sc_answer` 若未命中，先 `sc_resolve_name(短码)`；蓝图/制造语境优先 `kind=blueprint` 基型（无引号皮肤名），勿被同名前缀皮肤 item/蓝图带偏。俗称 seed：`视差`→Parallax Energy Assault Rifle；`卡拉克`→Carrack。
-  * `sc_query_plan` 可选（只要路由/调试时）。缺字段如实说明。
-  * 不要编造库中没有的数据。
-  * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。
-  * **理解 → 检索 → 成文（Agent 层）**：
-    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图见下表 `primary`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
-    2. **检索**：只调 `sc-search` 白名单工具；按 **意图 → 工具** 表顺序取证（已有证据可跳过）。机器可读副本：`src/sc_search/query/intent_tools.py` 的 `INTENT_TOOLS`。
-    3. **成文**：不论题型，有数据就 LLM 深度整理成玩家可读答案；无数据就说明未收录。脚手架不是终稿；库无字段不编造。
-  * **默认入口（简化）**：单实体静态参数/物价 → 直接 `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先定 `primary` 再按下表检索（不必先 `sc_query_plan`）。
-  * **意图 → 工具（检索契约）**：
-
-    | primary | 槽位（常见） | 工具顺序 | path |
-    | :--- | :--- | :--- | :--- |
-    | `trade` | commodity, side, system, terminal | `sc_answer` → `sc_best_prices` → `sc_terminal_prices` | mcp_only |
-    | `ship_stats` | ship | `sc_answer` → `sc_resolve_name` → `sc_entity_facts` | mcp_only |
-    | `ship_buy` | ship | `sc_answer` → resolve → facts →（可选）`sc_search_docs`；购点外链确认后再开浏览器 | mcp_then_browser |
-    | `mission_rep` | faction, rank, system | `sc_resolve_name`(势力) → `sc_list_missions` → `sc_entity_facts`；**不编造声望点数** | mcp_only |
-    | `mission_money` | activity, system, faction | `sc_list_missions` → resolve →（可选）`sc_answer` | mcp_only |
-    | `blueprint` / `crafting` | item, blueprint | `sc_answer` → resolve（偏 blueprint）→ `sc_entity_facts`；矿点未收录则明说 | mcp_only |
-    | `loadout` | ship | 静态：`sc_answer`/resolve/`sc_entity_facts`；用户要 DPS/配装结果再 Erkul | mcp_then_browser |
-    | `mining` | ship, laser | 静态同上；确认后再开 mining guides（RedMonster / SCMINER / Cryon） | mcp_then_browser |
-    | `bug_tip` / `client_help` | topic | `sc_search_docs`（+ 可读 TIPS）；不足再 client 外链，确认后打开 | mcp_then_browser |
-    | `howto` | topic | `sc_search_docs` / `sc_answer` + howto guides | mcp_then_browser |
-    | `earn_meta` | activity, system | `sc_list_missions` → `sc_answer` / docs；禁止编造时薪 | mcp_then_browser |
-    | `pledge_meta` | topic | docs + pledge guides（库无账单） | mcp_then_browser |
-    | `event_guide` | event | docs / `sc_data_freshness`；时效活动确认后开外链 | mcp_then_browser |
-    | `lore_docs` | query | `sc_search_docs` →（可选）`sc_answer` | mcp_only |
-    | `trade_route` | commodity, system | `sc_best_prices` / `sc_answer`；整条航线确认后开规划站 | mcp_then_browser |
-    | `patch_live` | — | `sc_data_freshness` 对照库版本；正文以官网为准 | browser_only |
-    | `other` | — | `sc_answer` → resolve →（可选）`sc_query_plan`；勿空搜 | mcp_only |
-
-  * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`。
-  * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync scw_blueprints`｜`sync wiki`｜`sync aliases`｜`sync zh`。
-  * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
-
-
----
-
-## 2. 用户分享网站自动沉淀机制 (Site Tracking Protocol)
-
-* **自动识别与记录**：
-  * 凡是用户在对话中提到或分享的任何网站、论坛、工具、数据库或文章链接，**必须立即同步追加记录**至项目根目录下的 [SOURCES.md](SOURCES.md) 中。
-  * 记录字段包括：网站名称、完整 URL / 域名、功能或主要涵盖内容、记录日期与说明。
-* **优先复用原则**：
-  * 在后续需要查找相关信息时，主动利用 `search_web` 的 `domain` 过滤推荐或针对该站点检索，优先从用户沉淀的网站源中获取最新内容。
-
----
-
-## 3. 领域上下文与知识库 (Domain Context)
-
-* **默认游戏背景**：
-  * 用户的任何提问（涉及船只、武器、配件、地点、势力、任务、货币、机制等）均默认在《星际公民》宇宙背景下理解，无需向用户反复确认是否指代《星际公民》。
-* **版本与时效性意识**：
-  * 《星际公民》处于活跃开发阶段，版本（如 Live、PTU、EPTU；Alpha 3.x 到 4.x Pyro 系统等）迭代频繁，数值和机制常有重大重构（例如 Master Modes 大师模式、货运物理化 Cargo Refactor、飞船软死亡 Soft Death、工程系统 Engineering 等）。
-  * 回答机制或推荐配置时，应结合最新版本或明确注明对应版本环境。
-
----
-
-## 4. 专业术语与表达规范 (Terminology)
-
-* 熟练并准确使用游戏通用术语，包括但不限于：
-  * **货币/度量**：aUEC、UEC、SCU（标准货物箱单位）、cSCU。
-  * **系统与星系**：Stanton（斯坦顿）、Pyro（狂暴/派罗）、Nyx（尼克斯）、Jump Point（跳跃点）。
-  * **机制系统**：QT / Quantum Drive（量子跃迁）、Master Modes（NAV / SCM 模式）、Soft Death（软死亡）、Bed Logging（下床保存）。
-  * **制造商与飞船**：RSI、Anvil、Aegis、Drake、MISC、Origin、Crusader、Argo、Consolidated Outland、Mirai、Alien（Banu, Xi'an, Tevarin, Vanduul）等。
-* 对常见黑话、俗称和地点简称保持敏感（如“大白鲨”、“仙女座”、“切口/黑切/蓝切”、“十字军/奥里森”、“微凸/新巴贝奇”、“大火星/赫斯顿”、“18区/弧星”、“GH/六角湾”等）。
-
----
-
-## 5. 回答与文档输出准则 (Output Guidelines)
-
-* **结构化与实用性**：针对玩法攻略、跑商路线、采矿精炼、赏金配装、任务指引等内容，优先给出直观、结构清晰的表格、关键数据点或流程步骤。
-* **注重实操要点与风险提示**：主动提示防卡 Bug 技巧、PvP 风险区域、空间站保护区规则（Armistice Zone）以及避免资产损失的实战建议。
-
----
-
-## 6. 浏览器交互与自动化规范
-
-* **仅在 `sc_query_plan` 或 `sc_answer` 返回 `browser.needed=true`，且用户需要配装/DPS/采矿计算、打开推荐教程或明确要求核对时开浏览器**；先据本地证据 LLM 深度整理成文并列出 `browser.resources`，确认后再开。`confidence=high` 本地命中题不为「核对」再开 Erkul。日常事实查询不以浏览器为优先。
-* **剧本**：只用返回里的 `start_url`（或用户点名的 `resources[].url`）；配装 `search_term` 为英文标准名；动作 ≤ `max_actions`（默认 8）：打开 → 搜索/定位 → 提取 `extract` 列表。
-* **交给用户继续改（Erkul / 可交互工具站）**：若 `browser.leave_open=true`（配装 Erkul、采矿计算站等默认如此），Agent **提取摘要后不要关标签**；把浏览器面板留在当前会话里并对用户可见，明确说「页面还开着，你可以直接在上面改配装」。答完禁止主动关闭该标签；用户明确说关掉或换站时再关。
-* **可关标签的例外**：纯一次性核对、打开的是不可交互的搜索页/说明文，且 `leave_open` 未设为 true 时，可在提取后关闭。
-* **禁止**：`/auth`、`/settings`；同一题未在 plan/`sc_answer` 中写明时另开第二站；用未解析的中文俗称当 Erkul 搜索词；把 B 站搜索页内容编造为库内数值。
-* **失败降级**：超时或失败时，用已有 MCP facts / guides / `sc_answer` 推理草稿答静态部分，并标明「配装/DPS/教程页未取到」；若已打开且 `leave_open`，仍尽量把页面留给用户。
-* 需要浏览器自动化时，优先会话内可展示给用户的预览浏览器（否则 `ego-browser`），仍须服从上述门禁与剧本。
+- 事实优先本地 MCP **`sc-search`**；禁止先空搜 / 先开 Erkul 再查库。
+- 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
+- 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
+- 库无字段不编造；Erkul 等交互站在 `leave_open` 时摘要后把页面留给用户继续改。

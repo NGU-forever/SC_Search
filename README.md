@@ -230,7 +230,8 @@ python -m sc_search.ingest sync aliases
 
 ## 给开发者 / Agent 的文档
 
-- 项目规则与检索习惯：[`AGENTS.md`](AGENTS.md)
+- Agent 入口：[`AGENTS.md`](AGENTS.md)
+- 问答编排：[`ORCHESTRATION.md`](ORCHESTRATION.md)
 - 站点清单：[`SOURCES.md`](SOURCES.md)
 
 ---
