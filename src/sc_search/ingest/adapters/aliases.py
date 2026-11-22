@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -21,13 +20,8 @@ class AliasError(RuntimeError):
 
 
 def load_seed_aliases(path: Path | None = None) -> list[dict[str, str]]:
-    if path is not None:
-        return json.loads(path.read_text(encoding="utf-8"))
-    packaged = resources.files("sc_search").joinpath("data/seed_aliases.json")
-    if packaged.is_file():
-        return json.loads(packaged.read_text(encoding="utf-8"))
-    fallback = project_root() / "data" / "seed_aliases.json"
-    return json.loads(fallback.read_text(encoding="utf-8"))
+    target = path if path is not None else project_root() / "data" / "seed_aliases.json"
+    return json.loads(target.read_text(encoding="utf-8"))
 
 
 def apply_seed_aliases(

@@ -7,7 +7,6 @@ from sc_search.query.guides import browser_guide, guides_for
 from sc_search.query.resolve import _KIND_RANK, _rank_rows, resolve_name
 
 ERKUL_CALCULATOR = "https://erkul.games/calculator"
-REGOLITH = "https://regolith.rocks"
 
 _LOADOUT_RE = re.compile(
     r"(dps|loadout|erkul|配装|怎么配|如何配|打炮|火力|护盾续航)",
@@ -415,16 +414,12 @@ def _browser_erkul(search_term: str) -> dict:
 
 
 def _browser_mining(search_term: str) -> dict:
-    resources = _dedupe_resources(
-        [
-            {"title": "Regolith", "url": REGOLITH, "kind": "tool"},
-            *guides_for("mining", limit=3),
-        ]
-    )
+    resources = _dedupe_resources(guides_for("mining", limit=5))
+    start = resources[0]["url"] if resources else ""
     return {
         "needed": True,
-        "site": "regolith",
-        "start_url": REGOLITH,
+        "site": "mining",
+        "start_url": start,
         "search_term": search_term,
         "resources": resources,
         "max_actions": 8,

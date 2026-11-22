@@ -4,7 +4,7 @@ import json
 import sqlite3
 from typing import Any
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.fastmcp import FastMCP
 
 from sc_search.ingest.db import connect
 from sc_search.paths import get_db_path
@@ -17,7 +17,9 @@ from sc_search.query.resolve import resolve_name
 from sc_search.query.missions import list_missions
 from sc_search.query.search import search_docs
 
-mcp = MCPServer("sc-search")
+# Pin to MCP Python SDK 1.x FastMCP: Cursor/T3 tool discovery is more reliable
+# than the 2.x MCPServer API (which often surfaces as "live tool discovery" failure).
+mcp = FastMCP("sc-search")
 
 
 def _meta_from_rows(rows: list[dict]) -> dict[str, Any]:

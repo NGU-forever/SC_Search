@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -24,13 +23,8 @@ GUIDE_CATEGORIES = frozenset(
 
 
 def _load_raw(path: Path | None = None) -> dict[str, list[dict[str, str]]]:
-    if path is not None:
-        return json.loads(path.read_text(encoding="utf-8"))
-    packaged = resources.files("sc_search").joinpath("data/community_guides.json")
-    if packaged.is_file():
-        return json.loads(packaged.read_text(encoding="utf-8"))
-    fallback = project_root() / "data" / "community_guides.json"
-    return json.loads(fallback.read_text(encoding="utf-8"))
+    target = path if path is not None else project_root() / "data" / "community_guides.json"
+    return json.loads(target.read_text(encoding="utf-8"))
 
 
 @lru_cache(maxsize=1)

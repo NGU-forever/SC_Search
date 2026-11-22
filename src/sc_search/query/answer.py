@@ -925,7 +925,7 @@ def answer_question(
                     draft = f"本地库有 {label}，但未找到匹配字段。"
                     missing.append("matching_facts")
             else:
-                site = "Erkul" if intent == "loadout_calc" else "Regolith"
+                site = "Erkul" if intent == "loadout_calc" else "采矿工具站"
                 static = ""
                 if picked:
                     static = f"静态参考：{picked[0].get('key')}={_fact_value(picked[0])}。"

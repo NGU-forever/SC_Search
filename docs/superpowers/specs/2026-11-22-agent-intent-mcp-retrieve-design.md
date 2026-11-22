@@ -87,32 +87,29 @@
 
 ## 4. 意图 → MCP 调用表
 
-| primary | 建议调用顺序 |
-| :--- | :--- |
-| `trade` | `sc_answer` 或 `sc_best_prices` / `sc_terminal_prices` |
-| `ship_stats` | `sc_resolve_name` → `sc_entity_facts` 或 `sc_answer` |
-| `ship_buy` | facts +（可选）docs；缺店址则说明 |
-| `mission_rep` / `mission_money` | `sc_resolve_name(faction)` → `sc_entity_facts`；任务列表靠后续 **专用检索工具**（见 §5）或现阶段 `sc_search_docs` + 人工整理证据 |
-| `blueprint` / `crafting` | `sc_entity_facts` / resolve（SCMDB 实体） |
-| `loadout` / `mining` | `sc_answer`（静态）→ 用户要结果再浏览器 |
-| `bug_tip` | 本地 TIPS/docs；不足再软建议网页 |
-| `patch_live` | 按 live_web 门禁 |
-| `other` | `sc_answer` 兜底 |
+权威副本：`AGENTS.md` 检索契约表 + `src/sc_search/query/intent_tools.py`（`INTENT_TOOLS`，有单测）。
 
-保留：`sc_answer` = 简单事实/物价快路径；复杂口语 = Agent 拆槽 + 多工具。
+| primary | 工具顺序 | path |
+| :--- | :--- | :--- |
+| `trade` | `sc_answer` → `sc_best_prices` → `sc_terminal_prices` | mcp_only |
+| `ship_stats` | `sc_answer` → `sc_resolve_name` → `sc_entity_facts` | mcp_only |
+| `ship_buy` | answer / resolve / facts / docs；购点外链需确认 | mcp_then_browser |
+| `mission_rep` | `sc_resolve_name(faction)` → `sc_list_missions` → `sc_entity_facts` | mcp_only |
+| `mission_money` | `sc_list_missions` → resolve →（可选）`sc_answer` | mcp_only |
+| `blueprint` / `crafting` | `sc_answer` → resolve（偏 blueprint）→ `sc_entity_facts` | mcp_only |
+| `loadout` / `mining` | 静态 answer/resolve/facts → 用户要结果再浏览器 | mcp_then_browser |
+| `bug_tip` / `client_help` / `howto` / `earn_meta` / `pledge_meta` / `event_guide` / `trade_route` | docs/missions/answer + guides；确认后再开 | mcp_then_browser |
+| `lore_docs` | `sc_search_docs` →（可选）`sc_answer` | mcp_only |
+| `patch_live` | `sc_data_freshness` + 官网 | browser_only |
+| `other` | `sc_answer` → resolve →（可选）`sc_query_plan` | mcp_only |
+
+保留：`sc_answer` = 简单事实/物价快路径；复杂口语 = Agent 拆槽 + 上表多工具。
 
 ---
 
-## 5. MCP 缺口（第一期可后置）
+## 5. MCP 任务列表（已落地）
 
-为真正「锁定红风 Junior 任务」，库已有 SCMDB mission + contractor，但缺 **按势力/等级筛任务** 的 MCP 工具。
-
-建议后置工具（实现计划阶段再开）：
-
-- `sc_list_missions(faction?, rank_keyword?, system?, limit?)`  
-  查 entities/facts（contractor、mission 名含 Junior 等），返回精简列表（名、报酬、系统、类型）。
-
-第一期无该工具时：Agent 用 `sc_resolve_name("Red Wind")` + `sc_entity_facts` +（若有）docs，并诚实说「声望效率未入库」。
+`sc_list_missions(faction?, rank_keyword?, system?, limit?)` 已提供；`mission_rep` 标准路径为 resolve → list_missions。声望**点数/效率**仍可能未入库 → 成文时诚实说明，不编造。
 
 ---
 

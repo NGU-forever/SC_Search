@@ -116,7 +116,10 @@ def test_mining_calc(conn):
     p = query_plan(conn, "鼹鼠怎么配激光头")
     assert p["intent"] == "mining_calc"
     assert p["path"] == "mcp_then_browser"
-    assert p["browser"]["start_url"] == "https://regolith.rocks"
+    assert p["browser"]["start_url"] == "https://redmonstergaming.com"
+    assert "regolith.rocks" not in {
+        r.get("url", "") for r in (p["browser"].get("resources") or [])
+    }
 
 
 def test_shortcode_cq7_blueprint_context_prefers_blueprint(conn):

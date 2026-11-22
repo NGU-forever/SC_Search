@@ -137,8 +137,18 @@
   ],
   "mining": [
     {
-      "title": "Regolith",
-      "url": "https://regolith.rocks",
+      "title": "RedMonster Gaming（采矿速查表）",
+      "url": "https://redmonstergaming.com",
+      "kind": "tool"
+    },
+    {
+      "title": "SCMINER",
+      "url": "https://scminer.rocks",
+      "kind": "tool"
+    },
+    {
+      "title": "Cryon Rocks（Motherlode）",
+      "url": "https://cryon.rocks",
       "kind": "tool"
     },
     {

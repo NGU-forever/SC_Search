@@ -85,24 +85,25 @@ python -m sc_search.ingest status
 
 ### 4. 接到 Cursor
 
-1. 打开或编辑项目里的 `.cursor/mcp.json`（相对项目根即可）：
+1. 打开或编辑项目里的 `.cursor/mcp.json`。**请用本机绝对路径**（相对 `cwd: "."` 在部分宿主里会起不来；不要把 `.venv/bin/python` resolve 成系统 Python）：
 
 ```json
 {
   "mcpServers": {
     "sc-search": {
-      "command": ".venv/bin/python",
+      "command": "/绝对路径/SC_Search/.venv/bin/python",
       "args": ["-m", "sc_search.mcp_server"],
-      "cwd": ".",
+      "cwd": "/绝对路径/SC_Search",
       "env": {
-        "SC_SEARCH_DB": "data/sc_knowledge.sqlite"
+        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite",
+        "PYTHONPATH": "/绝对路径/SC_Search/src"
       }
     }
   }
 }
 ```
 
-Windows：`command` 用 `.venv\\Scripts\\python.exe`。若相对路径不起作用，再改成你本机的绝对路径。
+也可改用 `scripts/run_mcp.sh`（脚本内自解析仓库根）。Windows：`command` 用 `.venv\\Scripts\\python.exe`，`cwd` 用项目根绝对路径。
 
 2. 在 Cursor 里**重载 MCP / 重启 Agent**，确认出现服务器 **`sc-search`**。
 
@@ -176,20 +177,25 @@ MCP **不会**自动改库，避免误触发大流量下载；同步请在终端
 **Q：Token 安全吗？**  
 放在 `config/.env`，已被 git 忽略，不要发到聊天或公开仓库。
 
-**Q：MCP 里看不到 sc-search？**  
-检查 `.cursor/mcp.json` 路径是否指向本机 `.venv` 里的 Python；改完后重载 MCP。可在终端先跑：
+**Q：MCP 里看不到 sc-search / 发现失败？**  
+1. 确认 `.cursor/mcp.json` 用的是**绝对路径**的 `.venv/bin/python` 与项目 `cwd`（见上文）。  
+2. 依赖需为 **MCP Python SDK 1.x**（`mcp>=1.1,<2`，FastMCP）；2.x 的 `MCPServer` 在 Cursor/T3 上常会「live tool discovery」失败。  
+3. 在 Cursor / T3 里**重载 MCP**或新开一条 Agent 线程。  
+4. 终端自检：
 
 ```bash
+./scripts/run_mcp.sh
+# 或
 .venv/bin/python -m sc_search.mcp_server
 ```
 
-能启动（stdio 等待）说明包装好了。
+能启动（stdio 等待）说明服务本身正常，剩下是宿主重载。
 
 **Q：查询结果是空的？**  
 先跑 `python -m sc_search.ingest status`，确认对应源是 `ok`。空库时先 `init` 再 `sync`。
 
 **Q：我想加自己的俗称？**  
-编辑 `data/seed_aliases.json`（或打包内同名文件），再执行：
+编辑 `data/seed_aliases.json`，再执行：
 
 ```bash
 python -m sc_search.ingest sync aliases

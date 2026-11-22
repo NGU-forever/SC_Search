@@ -34,10 +34,32 @@
   * 不要编造库中没有的数据。
   * **Live 版本**：以 SCMDB sync 的补丁为准（当前 **4.10.3**）。UEX 等源自带的 `game_version`（如 3.24.x）可能滞后，短答应以 `sc_answer` 的 `live_game_version` / 「Live 4.10.3」为准，勿把 UEX 标注当成当前 Live。
   * **理解 → 检索 → 成文（Agent 层）**：
-    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图含：`mission_rep`（任务/声望）、`mission_money`、`trade`、`ship_stats`/`ship_buy`、`blueprint`/`crafting`、`loadout`、`mining`、`bug_tip`/`client_help`、`howto`、`earn_meta`、`pledge_meta`、`event_guide`、`lore_docs`、`patch_live`、`other`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
-    2. **检索**：只调 `sc-search` 白名单工具取证据；简单事实/物价可用 `sc_answer` 快路径；声望/任务列表用 `sc_resolve_name` + `sc_list_missions`（若可用）+ `sc_entity_facts`。
+    1. **理解**：先判断主意图与槽位（勿先开浏览器/WebSearch）。意图见下表 `primary`。纠正常见俗称（如 **红枫物流→红风物流 / Red Wind Linehaul**）。
+    2. **检索**：只调 `sc-search` 白名单工具；按 **意图 → 工具** 表顺序取证（已有证据可跳过）。机器可读副本：`src/sc_search/query/intent_tools.py` 的 `INTENT_TOOLS`。
     3. **成文**：不论题型，有数据就 LLM 深度整理成玩家可读答案；无数据就说明未收录。脚手架不是终稿；库无字段不编造。
-  * **默认入口（简化）**：单实体静态参数/物价 → `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先理解槽位再按上表检索。
+  * **默认入口（简化）**：单实体静态参数/物价 → 直接 `sc_answer`；口语复杂（声望、多约束任务、对比）→ 先定 `primary` 再按下表检索（不必先 `sc_query_plan`）。
+  * **意图 → 工具（检索契约）**：
+
+    | primary | 槽位（常见） | 工具顺序 | path |
+    | :--- | :--- | :--- | :--- |
+    | `trade` | commodity, side, system, terminal | `sc_answer` → `sc_best_prices` → `sc_terminal_prices` | mcp_only |
+    | `ship_stats` | ship | `sc_answer` → `sc_resolve_name` → `sc_entity_facts` | mcp_only |
+    | `ship_buy` | ship | `sc_answer` → resolve → facts →（可选）`sc_search_docs`；购点外链确认后再开浏览器 | mcp_then_browser |
+    | `mission_rep` | faction, rank, system | `sc_resolve_name`(势力) → `sc_list_missions` → `sc_entity_facts`；**不编造声望点数** | mcp_only |
+    | `mission_money` | activity, system, faction | `sc_list_missions` → resolve →（可选）`sc_answer` | mcp_only |
+    | `blueprint` / `crafting` | item, blueprint | `sc_answer` → resolve（偏 blueprint）→ `sc_entity_facts`；矿点未收录则明说 | mcp_only |
+    | `loadout` | ship | 静态：`sc_answer`/resolve/`sc_entity_facts`；用户要 DPS/配装结果再 Erkul | mcp_then_browser |
+    | `mining` | ship, laser | 静态同上；确认后再开 mining guides（RedMonster / SCMINER / Cryon） | mcp_then_browser |
+    | `bug_tip` / `client_help` | topic | `sc_search_docs`（+ 可读 TIPS）；不足再 client 外链，确认后打开 | mcp_then_browser |
+    | `howto` | topic | `sc_search_docs` / `sc_answer` + howto guides | mcp_then_browser |
+    | `earn_meta` | activity, system | `sc_list_missions` → `sc_answer` / docs；禁止编造时薪 | mcp_then_browser |
+    | `pledge_meta` | topic | docs + pledge guides（库无账单） | mcp_then_browser |
+    | `event_guide` | event | docs / `sc_data_freshness`；时效活动确认后开外链 | mcp_then_browser |
+    | `lore_docs` | query | `sc_search_docs` →（可选）`sc_answer` | mcp_only |
+    | `trade_route` | commodity, system | `sc_best_prices` / `sc_answer`；整条航线确认后开规划站 | mcp_then_browser |
+    | `patch_live` | — | `sc_data_freshness` 对照库版本；正文以官网为准 | browser_only |
+    | `other` | — | `sc_answer` → resolve →（可选）`sc_query_plan`；勿空搜 | mcp_only |
+
   * 工具：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`。
   * 写入/同步（MCP 只读）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync scw_blueprints`｜`sync wiki`｜`sync aliases`｜`sync zh`。
   * 中文事实类提问仍先 `sc_answer`（内部含译名解析，标准译名来自汉化组 ini、俗称来自 seed）；仅当用户只要名称/别名对照时直调 `sc_resolve_name`；浏览器 `search_term` 须用 plan 或 `sc_answer` 证据中的英文标准名。
