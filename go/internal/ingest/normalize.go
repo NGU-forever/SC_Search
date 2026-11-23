@@ -114,6 +114,69 @@ func UpsertAlias(conn *sql.DB, entityID int64, alias, lang, source string) error
 	return err
 }
 
+func ClearSourceFactsRelations(conn *sql.DB, source, gameVersion string) error {
+	if _, err := conn.Exec(`DELETE FROM facts WHERE source = ? AND game_version = ?`, source, gameVersion); err != nil {
+		return err
+	}
+	_, err := conn.Exec(`DELETE FROM relations WHERE source = ? AND game_version = ?`, source, gameVersion)
+	return err
+}
+
+func InsertRelation(conn *sql.DB, fromID, toID int64, relType, source, gameVersion string, qty *float64, metaJSON string) error {
+	var q any
+	if qty != nil {
+		q = *qty
+	}
+	_, err := conn.Exec(`
+		INSERT INTO relations (from_id, to_id, rel_type, qty, meta_json, source, game_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, fromID, toID, relType, q, nullStr(metaJSON), source, gameVersion)
+	return err
+}
+
+func ReplacePrice(conn *sql.DB, commodityID, terminalID int64, side string, price float64, source, gameVersion string, ingestRunID int64, scuAvailable *float64, reportedAt string) error {
+	var scu any
+	if scuAvailable != nil {
+		scu = *scuAvailable
+	}
+	_, err := conn.Exec(`
+		INSERT INTO prices (
+		  commodity_entity_id, terminal_entity_id, side, price, scu_available,
+		  reported_at, source, game_version, ingest_run_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(commodity_entity_id, terminal_entity_id, side, source, game_version)
+		DO UPDATE SET
+		  price = excluded.price,
+		  scu_available = excluded.scu_available,
+		  reported_at = excluded.reported_at,
+		  ingest_run_id = excluded.ingest_run_id
+	`, commodityID, terminalID, side, price, scu, nullStr(reportedAt), source, gameVersion, ingestRunID)
+	return err
+}
+
+func UpsertFact(conn *sql.DB, entityID int64, key, source, gameVersion string, ingestRunID *int64, valueText string, valueNum *float64, unit string) error {
+	if _, err := conn.Exec(`
+		DELETE FROM facts
+		WHERE entity_id = ? AND key = ? AND source = ? AND game_version = ?
+	`, entityID, key, source, gameVersion); err != nil {
+		return err
+	}
+	var run any
+	if ingestRunID != nil {
+		run = *ingestRunID
+	}
+	var num any
+	if valueNum != nil {
+		num = *valueNum
+	}
+	_, err := conn.Exec(`
+		INSERT INTO facts (
+		  entity_id, key, value_text, value_num, unit, source, game_version, ingest_run_id
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, entityID, key, nullStr(valueText), num, nullStr(unit), source, gameVersion, run)
+	return err
+}
+
 func ClearSourceDocuments(conn *sql.DB, source, gameVersion string) error {
 	_, err := conn.Exec(
 		`DELETE FROM documents WHERE source = ? AND game_version = ?`,

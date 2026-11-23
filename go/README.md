@@ -5,8 +5,8 @@ Dual-track Go MCP server.
 **Native in Go:** resolve, prices, freshness, entity facts, missions, locations, docs,
 intents, route, worker, query_plan, and full `sc_answer` (including guides/blueprint/loadout).
 
-**Ingest (partial Go):** `sc-search ingest init|status|sync aliases`. Remaining adapters
-(uex/scmdb/scw/wiki/localization) still Python via `python -m sc_search.ingest`.
+**Ingest (partial Go):** `sc-search ingest init|status|sync aliases|wiki|localization|uex`.
+Remaining: scmdb/scw (+ blueprints) still Python via `python -m sc_search.ingest`.
 
 `ErrUseBridge` remains only as a safety fallback for unexpected answer intents.
 

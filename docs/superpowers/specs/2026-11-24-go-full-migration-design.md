@@ -1,7 +1,7 @@
 # SC Search — Full Go Migration Design
 
 **Date:** 2026-11-24  
-**Status:** In progress — P0–P3 done; P4 normalize+aliases; remaining adapters + P5 cutover
+**Status:** In progress — P0–P3 done; P4 most adapters (scmdb/scw remain); P5 cutover
 
 ## Progress (2026-11-24)
 
@@ -11,7 +11,7 @@
 | P1 Go MCP + bridge | done | `22192d7` |
 | P2 native query tools | done | prices/facts/missions/docs/plan/answer … through `3c960b8` |
 | P3 router/worker | done | `189b27b`, `7663970` |
-| P4 ingest | partial | `init`/`status`/`sync aliases` + normalize helpers; uex/scmdb/… still Python |
+| P4 ingest | partial | `sync aliases|wiki|localization|uex`; scmdb/scw still Python |
 | P5 cutover | not started | Point Cursor MCP at `go/sc-search mcp`; retire Python runtime |
 
 ## Goals
