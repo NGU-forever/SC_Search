@@ -140,6 +140,35 @@ cp .cursor/mcp.json.example .cursor/mcp.json
 2. **复杂**题 → 客户端定 `primary` + slots → `sc_route`（本地展开可并行 DAG）→ `sc_worker_run`（并行取证）→ 客户端成文
 3. 若返回 `replan_suggested`：改意图再跑（最多 1 次）；若 `slot_retry_suggested`：先改检索词/槽位
 
+```mermaid
+flowchart TD
+  userQ[用户提问]
+  simple{简单静态度或物价?}
+  bypass[sc_answer 旁路]
+  router[客户端 LLM 定 primary 加 slots]
+  route[sc_route 展开 DAG]
+  worker[sc_worker_run 并行取证]
+  signals{回退信号?}
+  replan[改 primary 或 slots 再跑一次]
+  slotRetry[改检索词或槽位再跑一次]
+  write[客户端 LLM 成文]
+  browser[可选浏览器 需用户确认]
+
+  userQ --> simple
+  simple -->|是| bypass
+  simple -->|否| router
+  bypass --> write
+  router --> route
+  route --> worker
+  worker --> signals
+  signals -->|replan_suggested| replan
+  signals -->|slot_retry_suggested| slotRetry
+  signals -->|无或已达上限| write
+  replan --> route
+  slotRetry --> route
+  write --> browser
+```
+
 完整编排见 [ORCHESTRATION.md](ORCHESTRATION.md)。在豆包里直接问即可（建议勾选 `sc-search`）。常用工具：
 
 | 你想问的 | 大致会用到的工具 |
