@@ -7,6 +7,7 @@ from typing import Any
 from sc_search.query.resolve import resolve_name
 
 _TOKEN_SPLIT = re.compile(r"[\s_\-]+")
+_STOPWORDS = frozenset({"a", "an", "and", "for", "in", "of", "the", "to"})
 
 
 def _pick_entity(matches: list[dict], kind: str) -> dict | None:
@@ -32,9 +33,20 @@ def normalize_mission_text(text: str) -> str:
     return re.sub(r"[\s_\-]+", "", (text or "").lower())
 
 
-def rank_keyword_tokens(rank_keyword: str) -> list[str]:
-    """Split rank_keyword into non-empty tokens (whitespace / _ / -)."""
-    return [t for t in _TOKEN_SPLIT.split(rank_keyword.strip()) if t]
+def rank_keyword_tokens(rank_keyword: str, faction: str | None = None) -> list[str]:
+    """Split rank_keyword into content tokens (drop stopwords / faction echoes)."""
+    tokens = [t for t in _TOKEN_SPLIT.split(rank_keyword.strip()) if t]
+    out: list[str] = []
+    faction_norm = normalize_mission_text(faction) if faction and faction.strip() else ""
+    for t in tokens:
+        n = normalize_mission_text(t)
+        if not n or n in _STOPWORDS:
+            continue
+        # Client often repeats faction inside rank_keyword ("Bit Zeros ship heist").
+        if faction_norm and (n in faction_norm or faction_norm in n):
+            continue
+        out.append(t)
+    return out
 
 
 def _haystacks_for_row(canonical: str, aliases: list[str]) -> list[str]:
@@ -130,11 +142,18 @@ def list_missions(
         sql += " AND COALESCE(fs.value_text, '') LIKE ? COLLATE NOCASE"
         params.append(f"%{system.strip()}%")
 
-    # Fetch a wider pool when ranking by keyword, then filter/score in Python.
-    tokens = rank_keyword_tokens(rank_keyword) if rank_keyword and rank_keyword.strip() else []
-    fetch_limit = max(limit * 20, 200) if tokens else limit
-    sql += " ORDER BY fr.value_num DESC NULLS LAST LIMIT ?"
-    params.append(fetch_limit)
+    # When keyword tokens are present, pull the full filtered set then score in
+    # Python — reward-ordered LIMIT would drop null-reward missions (e.g. ShipHeist).
+    tokens = (
+        rank_keyword_tokens(rank_keyword, faction=faction)
+        if rank_keyword and rank_keyword.strip()
+        else []
+    )
+    if tokens:
+        sql += " ORDER BY fr.value_num DESC NULLS LAST"
+    else:
+        sql += " ORDER BY fr.value_num DESC NULLS LAST LIMIT ?"
+        params.append(limit)
 
     rows = [dict(r) for r in conn.execute(sql, params).fetchall()]
     if not tokens:
@@ -175,7 +194,11 @@ def mission_near_misses(
     limit: int = 3,
 ) -> list[dict[str, Any]]:
     """Top near matches when list_missions is empty (for meta.near_misses)."""
-    tokens = rank_keyword_tokens(rank_keyword) if rank_keyword and rank_keyword.strip() else []
+    tokens = (
+        rank_keyword_tokens(rank_keyword, faction=faction)
+        if rank_keyword and rank_keyword.strip()
+        else []
+    )
     if not tokens and not (faction and faction.strip()):
         return []
 
