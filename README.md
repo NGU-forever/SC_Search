@@ -2,7 +2,7 @@
 
 在 [豆包](https://www.doubao.com/)（豆包工作）或其它支持 MCP 的 AI 客户端里，用**本地数据库**快速查《星际公民》物价、任务/蓝图、飞船参数和中英俗称，不必每次都翻网页。
 
-适合：边玩边问「黄金哪卖贵」「大白鲨载货多少」「这个任务给什么蓝图」这类事实问题。
+运行时为 **Go 二进制**（MCP + ingest），无需 Python。
 
 ---
 
@@ -11,54 +11,42 @@
 | 项目 | 说明 |
 | :--- | :--- |
 | 电脑 | macOS / Windows / Linux 均可 |
-| Python | **3.11 或更高** |
-| AI 客户端 | 推荐 [豆包](https://www.doubao.com/)（桌面端「豆包工作」，支持自定义 MCP 连接器）；也可用 Cursor 等任意 STDIO MCP 客户端 |
+| Go | **1.22+**（用于构建 `go/sc-search`） |
+| AI 客户端 | 推荐 [豆包](https://www.doubao.com/)；也可用 Cursor 等 STDIO MCP 客户端 |
 | UEX 账号（可选） | 要查**实时跑商物价**时需要；只查任务/飞船/Wiki 可不配 |
 
 ---
 
 ## 5 分钟快速开始
 
-下面命令在**项目根目录**执行（本仓库解压/克隆后的文件夹）。
+下面命令在**项目根目录**执行。
 
-### 1. 安装
+### 1. 构建
 
 ```bash
-python3 -m venv .venv
-
-# macOS / Linux
-source .venv/bin/activate
-
-# Windows（PowerShell）
-# .venv\Scripts\Activate.ps1
-
-pip install -e .
+cd go && go build -o sc-search ./cmd/sc-search && cd ..
 ```
 
 ### 2. 配置（查物价时需要）
 
 1. 打开 [UEX My Apps](https://uexcorp.space/api/apps)，登录并**创建一个 App**，复制 **App Access Token**。
-2. 在项目里复制环境文件并填入 Token：
+2. 复制环境文件并填入 Token：
 
 ```bash
 cp config/.env.example config/.env
 ```
 
-编辑 `config/.env`：
-
 ```text
 UEX_API_TOKEN=粘贴你的Token
 ```
 
-`SC_SEARCH_DB` 可以留空（默认用 `data/sc_knowledge.sqlite`）。
+`SC_SEARCH_DB` 可留空（默认 `data/sc_knowledge.sqlite`）。
 
 ### 3. 初始化并下载数据
 
-**推荐：一键脚本**（首次或补丁后都可用，大约几分钟，视网速而定）：
-
 ```bash
 # macOS / Linux
-chmod +x scripts/sync_all.sh
+chmod +x scripts/sync_all.sh scripts/run_mcp.sh
 ./scripts/sync_all.sh
 ```
 
@@ -67,220 +55,111 @@ chmod +x scripts/sync_all.sh
 .\scripts\sync_all.ps1
 ```
 
-脚本会依次执行：`init` → `uex` → `scmdb` → `scw` → `wiki` → `aliases` → `zh`。  
-若未配置 `UEX_API_TOKEN`，物价同步会跳过，其它源照常进行。
+脚本会：`init` → `uex` → `scmdb` → `scw` → `wiki` → `aliases` → `localization`。  
+未配置 `UEX_API_TOKEN` 时物价同步会跳过。
 
-也可以手动逐步执行：
+手动逐步：
 
 ```bash
-python -m sc_search.ingest init
-python -m sc_search.ingest sync uex                 # 跑商物价 + 飞船游戏内购价（需 Token）
-python -m sc_search.ingest sync scmdb --channel live  # 任务 / 蓝图奖励
-python -m sc_search.ingest sync scw                 # 飞船参数
-python -m sc_search.ingest sync wiki                # 英文 Wiki 摘要
-python -m sc_search.ingest sync aliases             # 民间俗称（大白鲨等）
-python -m sc_search.ingest sync zh                  # 汉化组标准中文译名（global.ini）
-python -m sc_search.ingest status
+./go/sc-search ingest init
+./go/sc-search ingest sync uex
+./go/sc-search ingest sync scmdb live
+./go/sc-search ingest sync scw
+./go/sc-search ingest sync wiki
+./go/sc-search ingest sync aliases
+./go/sc-search ingest sync localization
+./go/sc-search ingest status
 ```
 
-### 4. 接到豆包（推荐）
+### 4. 接到豆包 / Cursor
 
-豆包桌面端「豆包工作」支持自定义 **STDIO** MCP；自定义连接器仅在**本地电脑**任务里可用（不要选云电脑）。
-
-1. 先确认本机能启动 MCP（仓库根目录）：
+1. 确认 MCP 能启动：
 
 ```bash
-# macOS / Linux — prefers Go binary (builds go/sc-search if needed)
 ./scripts/run_mcp.sh
-# 或显式：
-#   ./go/sc-search mcp
-# Python 回退：.venv/bin/python -m sc_search.mcp_server
+# 或 ./go/sc-search mcp
 ```
 
-```powershell
-# Windows PowerShell
-.\scripts\run_mcp.ps1
-# 或
-.\.venv\Scripts\python.exe -m sc_search.mcp_server
-```
-
-能挂起等待（stdio）说明服务正常，用 `Ctrl+C` 结束后再去豆包里配。
-
-2. 打开豆包 → **技能 · 连接器 · 伙伴**（或「插件 · 技能 · 伙伴」）→ **新建** → **新建自定义连接器**，按下面填写：
+2. 豆包自定义连接器（STDIO，**本地电脑**）：
 
 | 字段 | 填写 |
 | :--- | :--- |
 | 服务器名称 | `sc-search` |
 | 传输类型 | **STDIO** |
-| 命令 | **绝对路径**：macOS/Linux 用 `/绝对路径/SC_Search/.venv/bin/python`；Windows 用 `C:\绝对路径\SC_Search\.venv\Scripts\python.exe` |
-| 参数 | 逐项添加：`-m`、`sc_search.mcp_server` |
-| 环境变量 | `SC_SEARCH_DB` = 数据库绝对路径（Windows 例：`C:\绝对路径\SC_Search\data\sc_knowledge.sqlite`）；`PYTHONPATH` = `...\SC_Search\src`（可选，`pip install -e .` 后常可不设） |
+| 命令 | `/绝对路径/SC_Search/go/sc-search`（或 `scripts/run_mcp.sh`） |
+| 参数 | `mcp`（用脚本时可留空） |
+| 环境变量 | `SC_SEARCH_DB` = 数据库绝对路径 |
 
-更省事：命令改填启动脚本、参数留空——macOS/Linux：`scripts/run_mcp.sh`（先 `chmod +x`）；Windows：`scripts\run_mcp.ps1`（若豆包要求 `.exe`/解释器，命令填 `powershell.exe`，参数填 `-File`、`C:\绝对路径\SC_Search\scripts\run_mcp.ps1`）。
-
-3. 保存后确认连接器已启用；新建**工作任务**，运行位置选 **本地电脑**，在连接器里勾选 `sc-search`。若首次提示运行失败，在连接器列表里点一次「重新启动」。
-
-也可参考官方说明：[豆包工作 · 插件 / 自定义连接器](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins)。
-
-<details>
-<summary>备用：Cursor 等 mcp.json 客户端</summary>
+Cursor：
 
 ```bash
 cp .cursor/mcp.json.example .cursor/mcp.json
 ```
 
-编辑 `.cursor/mcp.json`（已被 git 忽略，勿提交本机路径），把其中的绝对路径改成你的仓库路径后，在客户端重载 MCP。也可把 `command` 换成 `scripts/run_mcp.sh`。
-
-</details>
+把绝对路径改成你的仓库路径后重载 MCP。
 
 ### 5. 开始提问
 
-回答链路（同进程 **Router → Worker**，LLM 仍在豆包/Cursor 客户端）：
+1. **简单**单实体静态度/价 → `sc_answer`
+2. **复杂**题 → `primary` + slots → `sc_route` → `sc_worker_run` → 成文
+3. `replan_suggested` / `slot_retry_suggested` 各最多再跑 1 次
 
-1. **简单**单实体静态度/价 → 直接 `sc_answer`（旁路）
-2. **复杂**题 → 客户端定 `primary` + slots → `sc_route`（本地展开可并行 DAG）→ `sc_worker_run`（并行取证）→ 客户端成文
-3. 若返回 `replan_suggested`：改意图再跑（最多 1 次）；若 `slot_retry_suggested`：先改检索词/槽位
-
-```mermaid
-flowchart TD
-  userQ[用户提问]
-  simple{简单静态度或物价?}
-  bypass[sc_answer 旁路]
-  router[客户端 LLM 定 primary 加 slots]
-  route[sc_route 展开 DAG]
-  worker[sc_worker_run 并行取证]
-  signals{回退信号?}
-  replan[改 primary 或 slots 再跑一次]
-  slotRetry[改检索词或槽位再跑一次]
-  write[客户端 LLM 成文]
-  browser[可选浏览器 需用户确认]
-
-  userQ --> simple
-  simple -->|是| bypass
-  simple -->|否| router
-  bypass --> write
-  router --> route
-  route --> worker
-  worker --> signals
-  signals -->|replan_suggested| replan
-  signals -->|slot_retry_suggested| slotRetry
-  signals -->|无或已达上限| write
-  replan --> route
-  slotRetry --> route
-  write --> browser
-```
-
-完整编排见 [ORCHESTRATION.md](ORCHESTRATION.md)。在豆包里直接问即可（建议勾选 `sc-search`）。常用工具：
+完整编排见 [ORCHESTRATION.md](ORCHESTRATION.md)。
 
 | 你想问的 | 大致会用到的工具 |
 | :--- | :--- |
-| （简单事实/物价，默认快路径） | `sc_answer` |
-| （复杂题：意图→并行取证） | `sc_route` → `sc_worker_run` |
-| （只要路由/调试） | `sc_query_plan` |
-| 「黄金在哪卖贵？」 | `sc_best_prices` / 或走 route+worker |
-| 「Lorville 都卖什么价？」 | `sc_terminal_prices` |
+| 简单事实/物价 | `sc_answer` |
+| 复杂题 | `sc_route` → `sc_worker_run` |
+| 「黄金在哪卖贵？」 | `sc_best_prices` |
 | 「大白鲨是哪艘船？」 | `sc_resolve_name` |
 | 「Carrack 载货 / 厂家？」 | `sc_entity_facts` |
 | 「红风 Junior 能接什么任务？」 | `sc_list_missions` |
-| 「Carrack 是什么船？」 | `sc_search_docs` |
 | 「数据是什么时候同步的？」 | `sc_data_freshness` |
-
-槽位提示：贸易/飞船可用中文俗称；任务/赚钱类请尽量填英文或标准译名，避免把「开荒」「赚钱」当检索词。
-
-也可以自己先确认工具是否正常：问一句「用 sc-search 查一下黄金卖出价」。
-
-本地不经豆包调试 Router/Worker：
-
-```bash
-python -m sc_search.rw bypass "卡拉克货舱多大"
-python -m sc_search.rw run "黄金哪里卖最贵" --primary trade --slots '{"commodity":"黄金","side":"sell"}'
-python -m sc_search.rw run "萌新怎么赚钱" --primary earn_meta --slots '{"activity":"开荒"}' --compact
-python -m sc_search.rw intents
-```
-
-退出码：`0` 成功；`1` 工具失败；`2` 成功但建议重规划/改槽位（`replan_suggested` 或 `slot_retry_suggested`）。`--compact` 只打信号与各 call 成败，不甩完整 evidence。
 
 ---
 
-## 游戏更新后怎么办
-
-补丁或物价变化后，再跑一次一键脚本即可：
+## 游戏更新后
 
 ```bash
-./scripts/sync_all.sh          # macOS / Linux
-# .\scripts\sync_all.ps1       # Windows
+./scripts/sync_all.sh
+# 或只同步 PTU：./go/sc-search ingest sync scmdb ptu
 ```
 
-也可以只同步某一源，例如 PTU：`python -m sc_search.ingest sync scmdb --channel ptu`。
-
-
-MCP **不会**自动改库，避免误触发大流量下载；同步请在终端手动执行。
+MCP **不会**自动改库；同步请在终端手动执行。
 
 ---
 
 ## 现在能查什么 / 还不能指望什么
 
-**本地库比较擅长：**
+**本地库比较擅长：** 跑商价、飞船 aUEC 购点（UEX）、任务/蓝图（SCMDB）、飞船参数（SCW）、Wiki 摘要、汉化组译名、民间俗称。
 
-- 货物买卖价、终端报价（来自 UEX，社区众包，可能有误差）
-- 飞船游戏内购点与 aUEC（同属 `sync uex`：UEX `vehicles_purchases_prices_all`）
-- 任务赏金、蓝图奖励池、部分物品奖励（SCMDB）
-- 飞船参数与中英描述片段（Star Citizen Wiki API）
-- Wiki 英文摘要全文检索
-- 汉化组标准中文译名（如 克拉克 → Carrack；来自 [汉化组 global.ini](https://citizenwiki.cn/Localization)，CC BY-NC-SA 4.0，仅个人非商用）
-- 民间俗称（如大白鲨 → Carrack；维护在 `data/seed_aliases.json`）
-
-**仍建议开网页 / 游戏内确认的：**
-
-- Erkul 精细配装与 DPS
-- 采矿阻力、激光头计算
-- Spectrum 论坛、需登录的官方内容
-- 中文维基长文（`citizenwiki.cn` 对自动程序常有 Cloudflare 拦截；标准译名已用汉化组 ini 覆盖）
-
-
-回答里若带了 `game_version` / 同步时间，请以那一行判断数据新不新。UEX 返回的版本号有时会偏旧，以同步时间和实机为准。
+**仍建议开网页确认：** Erkul 配装/DPS、采矿计算、Spectrum、需登录官方内容。
 
 ---
 
 ## 常见问题
 
 **Q：没有 UEX Token 能用吗？**  
-能。跳过 `sync uex`，任务、飞船参数、Wiki、俗称照样可用；只是没有跑商物价和飞船游戏内 aUEC 购点。
+能。跳过 `sync uex` 即可。
 
-**Q：Token 安全吗？**  
-放在 `config/.env`，已被 git 忽略，不要发到聊天或公开仓库。
-
-**Q：MCP 里看不到 sc-search / 发现失败？**  
-1. **豆包**：确认传输类型是 STDIO、命令为 Python/脚本的**绝对路径**、任务环境是**本地电脑**，连接器已启用；失败时点「重新启动」。  
-2. **Cursor 等**：确认 `.cursor/mcp.json` 用的是绝对路径的 `.venv/bin/python`（或 `run_mcp.sh`）。  
-3. 依赖需为 **MCP Python SDK 1.x**（`mcp>=1.1,<2`，FastMCP）；2.x 在部分宿主上会「live tool discovery」失败。  
-4. 终端自检：
-
-```bash
-./scripts/run_mcp.sh          # macOS / Linux
-# .\scripts\run_mcp.ps1       # Windows
-# 或 .venv/.../python -m sc_search.mcp_server
-```
-
-能启动（stdio 等待）说明服务本身正常，剩下是客户端重载 / 重新启用连接器。
+**Q：MCP 里看不到 sc-search？**  
+确认命令是 `go/sc-search` 的绝对路径、`args=["mcp"]`，并重载连接器。自检：`./scripts/run_mcp.sh`。
 
 **Q：查询结果是空的？**  
-先跑 `python -m sc_search.ingest status`，确认对应源是 `ok`。空库时先 `init` 再 `sync`。
+`./go/sc-search ingest status`，空库先 `init` 再 `sync`。
 
-**Q：我想加自己的俗称？**  
-编辑 `data/seed_aliases.json`，再执行：
-
-```bash
-python -m sc_search.ingest sync aliases
-```
+**Q：我想加俗称？**  
+编辑 `data/seed_aliases.json`，再 `./go/sc-search ingest sync aliases`。
 
 ---
 
-## 给开发者 / Agent 的文档
+## 给开发者 / Agent
 
 - Agent 入口：[`AGENTS.md`](AGENTS.md)
 - 问答编排：[`ORCHESTRATION.md`](ORCHESTRATION.md)
+- Go 说明：[`go/README.md`](go/README.md)
 - 站点清单：[`SOURCES.md`](SOURCES.md)
+- 测试：`cd go && go test ./...`
 
 ---
 
@@ -288,11 +167,9 @@ python -m sc_search.ingest sync aliases
 
 本仓库**代码与自有文档**以 [MIT License](LICENSE) 发布。
 
-第三方数据需单独遵守其原许可（同步到本地库时不会随本仓库分发 SQLite 数据）：
-
 | 来源 | 用途 | 许可要点 |
 | :--- | :--- | :--- |
-| [汉化组 global.ini](https://citizenwiki.cn/Localization) | `sync zh` 标准中文译名 | **CC BY-NC-SA 4.0**，仅个人非商用 |
-| UEX / SCMDB / Star Citizen Wiki 等 | 物价、任务、飞船参数、摘要 | 以各站点条款为准；本工具仅作个人游戏辅助 |
+| [汉化组 global.ini](https://citizenwiki.cn/Localization) | `sync localization` 标准中文译名 | **CC BY-NC-SA 4.0**，仅个人非商用 |
+| UEX / SCMDB / Star Citizen Wiki 等 | 物价、任务、飞船参数、摘要 | 以各站点条款为准 |
 
 本项目与 Cloud Imperium Games / RSI 无官方关联；数据来自社区站点，仅供个人学习与游戏辅助。

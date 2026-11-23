@@ -69,5 +69,5 @@ Order: resolve → prices → freshness → entities → missions → locations 
 
 - [x] Default MCP → Go binary (`scripts/run_mcp.sh`, `.cursor/mcp.json.example`)
 - [x] Update `ORCHESTRATION.md` / `AGENTS.md` / README
-- [ ] Remove or archive Python runtime (kept as dual-track fallback for now)
+- [x] Remove Python runtime (`src/`, `tests/`, pyproject, bridge)
 - [ ] Gemini final test+commit

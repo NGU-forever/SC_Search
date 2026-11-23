@@ -1,7 +1,7 @@
 # SC Search — Full Go Migration Design
 
 **Date:** 2026-11-24  
-**Status:** Complete for dual-track goals — P0–P5 done; Python kept as optional fallback
+**Status:** Complete — Go-only runtime; Python tree removed
 
 ## Progress (2026-11-24)
 
@@ -12,7 +12,8 @@
 | P2 native query tools | done | prices/facts/missions/docs/plan/answer … through `3c960b8` |
 | P3 router/worker | done | `189b27b`, `7663970` |
 | P4 ingest | done (code) | all sync sources in Go; commits rolling |
-| P5 cutover | done | `scripts/run_mcp.sh` + mcp.json.example → Go; Python runtime retained as fallback |
+| P5 cutover | done | Go-only MCP/ingest; Python `src/`/`tests`/pyproject removed |
+| Post-P5 | done | Removed bridge; `sync_all` → Go; repo root via `internal/repo` |
 
 ## Goals
 

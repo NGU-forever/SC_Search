@@ -30,9 +30,6 @@ const (
 
 const deepOrganizeHint = "有本地证据时：结合 answer_draft 与 evidence 做深度整理，写成更详细的玩家可读说明（结论、分点/小表、版本来源、操作含义）；数值与店名等只能来自证据，勿编造未收录字段。"
 
-// ErrUseBridge signals MCP should fall back to the Python bridge for this question.
-var ErrUseBridge = fmt.Errorf("answer: use python bridge")
-
 // AnswerQuestion is the Go sc_answer implementation (parity with Python answer_question).
 func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[string]any, error) {
 	level := strings.ToLower(strings.TrimSpace(detailLevel))
@@ -327,7 +324,8 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 		}
 
 	default:
-		return nil, ErrUseBridge
+		draft = "本地知识库未覆盖该意图；不会编造数据。"
+		missing = append(missing, "intent_handler")
 	}
 
 	evidence["missing"] = missing

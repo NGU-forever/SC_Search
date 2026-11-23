@@ -3,33 +3,22 @@ package worker
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 
-	"github.com/frankxiong/sc-search/internal/bridge"
 	"github.com/frankxiong/sc-search/internal/query"
 )
 
-// NewNativeInvoker returns an Invoker that prefers Go query tools and bridges the rest.
-func NewNativeInvoker(db *sql.DB, caller *bridge.Caller) Invoker {
+// NewNativeInvoker returns an Invoker that runs Go query tools only.
+func NewNativeInvoker(db *sql.DB) Invoker {
 	return func(ctx context.Context, tool string, args map[string]any) map[string]any {
-		if db != nil {
-			if env, ok := tryNative(db, tool, args); ok {
-				return env
-			}
+		_ = ctx
+		if db == nil {
+			return map[string]any{"ok": false, "error": "database unavailable", "data": nil, "meta": map[string]any{}}
 		}
-		if caller == nil {
-			return map[string]any{"ok": false, "error": fmt.Sprintf("no backend for %s", tool), "data": nil, "meta": map[string]any{}}
+		if env, ok := tryNative(db, tool, args); ok {
+			return env
 		}
-		raw, err := caller.Call(ctx, tool, args)
-		if err != nil {
-			return map[string]any{"ok": false, "error": err.Error(), "data": nil, "meta": map[string]any{}}
-		}
-		var parsed map[string]any
-		if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-			return map[string]any{"ok": false, "error": "bad bridge json", "data": nil, "meta": map[string]any{}}
-		}
-		return parsed
+		return map[string]any{"ok": false, "error": fmt.Sprintf("unsupported tool %s", tool), "data": nil, "meta": map[string]any{}}
 	}
 }
 
@@ -137,6 +126,18 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		question, _ := args["question"].(string)
 		hint, _ := args["hint_entity"].(string)
 		data, err := query.QueryPlan(db, question, hint)
+		if err != nil {
+			return errEnv(err), true
+		}
+		return okEnv(data, map[string]any{}), true
+	case "sc_answer":
+		question, _ := args["question"].(string)
+		detail, _ := args["detail_level"].(string)
+		if detail == "" {
+			detail = "brief"
+		}
+		hint, _ := args["hint_entity"].(string)
+		data, err := query.AnswerQuestion(db, question, detail, hint)
 		if err != nil {
 			return errEnv(err), true
 		}

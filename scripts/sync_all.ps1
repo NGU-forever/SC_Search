@@ -1,14 +1,24 @@
-# 一键初始化并同步 SC Search 本地知识库（Windows PowerShell）
+# 一键初始化并同步 SC Search 本地知识库（Go / Windows）
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
 
-$Py = Join-Path $Root ".venv\Scripts\python.exe"
-if (-not (Test-Path $Py)) {
-  $Py = "python"
+$Bin = Join-Path $Root "go\sc-search.exe"
+if (-not (Test-Path $Bin)) {
+  $Alt = Join-Path $Root "go\sc-search"
+  if (Test-Path $Alt) { $Bin = $Alt }
+}
+if (-not (Test-Path $Bin)) {
+  if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+    Write-Error "未找到 go 与 go\sc-search。请安装 Go 后重试。"
+  }
+  Push-Location (Join-Path $Root "go")
+  go build -o sc-search.exe ./cmd/sc-search
+  Pop-Location
+  $Bin = Join-Path $Root "go\sc-search.exe"
 }
 
-Write-Host "==> 使用: $Py"
+Write-Host "==> 使用: $Bin"
 Write-Host "==> 项目: $Root"
 
 $EnvFile = Join-Path $Root "config\.env"
@@ -21,33 +31,33 @@ if (-not (Test-Path $EnvFile) -and (Test-Path $EnvExample)) {
 function Invoke-Ingest {
   param([Parameter(ValueFromRemainingArguments = $true)]$Args)
   Write-Host ""
-  Write-Host "==> python -m sc_search.ingest $($Args -join ' ')"
-  & $Py -m sc_search.ingest @Args
-  if ($LASTEXITCODE -ne 0) { throw "命令失败: sc_search.ingest $($Args -join ' ')" }
+  Write-Host "==> sc-search $($Args -join ' ')"
+  & $Bin @Args
+  if ($LASTEXITCODE -ne 0) { throw "命令失败: sc-search $($Args -join ' ')" }
 }
 
-Invoke-Ingest init
+Invoke-Ingest ingest init
 
 try {
-  Invoke-Ingest sync uex
+  Invoke-Ingest ingest sync uex
 } catch {
   Write-Host "（跳过）uex 同步失败——若只需任务/飞船/中文，可忽略；查物价请配置 UEX_API_TOKEN"
 }
 
-Invoke-Ingest sync scmdb --channel live
-Invoke-Ingest sync scw
-Invoke-Ingest sync wiki
-Invoke-Ingest sync aliases
+Invoke-Ingest ingest sync scmdb live
+Invoke-Ingest ingest sync scw
+Invoke-Ingest ingest sync wiki
+Invoke-Ingest ingest sync aliases
 
 try {
-  Invoke-Ingest sync zh
+  Invoke-Ingest ingest sync localization
 } catch {
-  Write-Host "（跳过）zh 同步失败——可稍后重试；若 data/raw 已有 global.*.ini 缓存，一般会自动回退使用"
+  Write-Host "（跳过）localization 同步失败——可稍后重试；若 data/raw 已有 global.*.ini 缓存，一般会自动回退使用"
 }
 
 Write-Host ""
 Write-Host "==> 同步完成，最近状态："
-Invoke-Ingest status
+Invoke-Ingest ingest status
 
 Write-Host ""
-Write-Host "完成。请在豆包（或其它 MCP 客户端）中启用 / 重载 sc-search 后再提问。"
+Write-Host "完成。请在 MCP 客户端中启用 / 重载 sc-search 后再提问。"

@@ -1,5 +1,4 @@
-// Package mcp registers the sc-search MCP tools.
-// Dual-track: native Go for ported query tools; remaining tools bridge to Python.
+// Package mcp registers the sc-search MCP tools (Go-native only).
 package mcp
 
 import (
@@ -11,17 +10,16 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/frankxiong/sc-search/internal/bridge"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/router"
 	"github.com/frankxiong/sc-search/internal/worker"
 )
 
-// NewServer builds the stdio MCP server with all tool names registered.
-func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
+// NewServer builds the stdio MCP server. db must be non-nil.
+func NewServer(db *sql.DB) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "sc-search",
-		Version: "0.7.0-go-partial-native",
+		Version: "1.0.0-go",
 	}, nil)
 
 	add := func(name, desc string, fn mcp.ToolHandlerFor[map[string]any, string]) {
@@ -35,17 +33,8 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 		}, raw, nil
 	}
 
-	bridgeHandler := func(tool string) mcp.ToolHandlerFor[map[string]any, string] {
-		return func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
-			if input == nil {
-				input = map[string]any{}
-			}
-			raw, err := caller.Call(ctx, tool, input)
-			if err != nil {
-				return textResult(errJSON(err.Error()), true)
-			}
-			return textResult(raw, false)
-		}
+	requireDB := func() (*mcp.CallToolResult, string, error) {
+		return textResult(errJSON("database unavailable"), true)
 	}
 
 	withFreshness := func(rows []map[string]any) map[string]any {
@@ -74,7 +63,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_resolve_name", "Resolve Star Citizen Chinese/English/slang names to entities in the local DB.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_resolve_name")(ctx, req, input)
+				return requireDB()
 			}
 			text, _ := input["text"].(string)
 			data, err := query.ResolveName(db, text)
@@ -87,7 +76,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_best_prices", "Best buy/sell prices for a commodity across terminals (local UEX snapshot).",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_best_prices")(ctx, req, input)
+				return requireDB()
 			}
 			commodity, _ := input["commodity"].(string)
 			side, _ := input["side"].(string)
@@ -109,7 +98,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_terminal_prices", "List commodity prices at a terminal from the local UEX snapshot.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_terminal_prices")(ctx, req, input)
+				return requireDB()
 			}
 			terminal, _ := input["terminal"].(string)
 			side, _ := input["side"].(string)
@@ -126,7 +115,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_data_freshness", "Show last ingest_runs freshness (game_version and sync time) per source.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_data_freshness")(ctx, req, input)
+				return requireDB()
 			}
 			source, _ := input["source"].(string)
 			data, err := query.DataFreshness(db, source)
@@ -139,7 +128,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_entity_facts", "Facts and relations for a mission, blueprint, ship, item, or faction from local DB.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_entity_facts")(ctx, req, input)
+				return requireDB()
 			}
 			name, _ := input["name_or_id"].(string)
 			detail, _ := input["detail"].(string)
@@ -167,7 +156,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_locations", "List locations/terminals (optionally by system) from the local DB.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_locations")(ctx, req, input)
+				return requireDB()
 			}
 			q, _ := input["query"].(string)
 			system, _ := input["system"].(string)
@@ -186,7 +175,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_search_docs", "Search local Wiki/doc snippets.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_search_docs")(ctx, req, input)
+				return requireDB()
 			}
 			q, _ := input["query"].(string)
 			limit := asInt(input["limit"], 5)
@@ -203,7 +192,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_list_missions", "List missions filtered by faction/system/type from the local DB.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_list_missions")(ctx, req, input)
+				return requireDB()
 			}
 			faction, _ := input["faction"].(string)
 			rankKeyword, _ := input["rank_keyword"].(string)
@@ -222,7 +211,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_query_plan")(ctx, req, input)
+				return requireDB()
 			}
 			question, _ := input["question"].(string)
 			hint, _ := input["hint_entity"].(string)
@@ -236,7 +225,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
 			if db == nil {
-				return bridgeHandler("sc_answer")(ctx, req, input)
+				return requireDB()
 			}
 			question, _ := input["question"].(string)
 			detail, _ := input["detail_level"].(string)
@@ -246,9 +235,6 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			hint, _ := input["hint_entity"].(string)
 			data, err := query.AnswerQuestion(db, question, detail, hint)
 			if err != nil {
-				if err == query.ErrUseBridge {
-					return bridgeHandler("sc_answer")(ctx, req, input)
-				}
 				return textResult(errJSON(err.Error()), true)
 			}
 			return textResult(okJSON(data, map[string]any{}), false)
@@ -309,6 +295,9 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 
 	add("sc_worker_run", "Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			if db == nil {
+				return requireDB()
+			}
 			var plan map[string]any
 			switch v := input["plan_json"].(type) {
 			case string:
@@ -320,7 +309,7 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			default:
 				return textResult(errJSON("plan_json must be a JSON object"), true)
 			}
-			invoker := worker.NewNativeInvoker(db, caller)
+			invoker := worker.NewNativeInvoker(db)
 			data := worker.RunPlan(ctx, plan, invoker)
 			return textResult(okJSON(data, map[string]any{}), false)
 		})

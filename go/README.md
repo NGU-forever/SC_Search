@@ -1,15 +1,12 @@
 # SC Search (Go)
 
-Dual-track Go MCP server.
+Go-only MCP server + ingest CLI for the Star Citizen local knowledge base.
 
-**Native in Go:** resolve, prices, freshness, entity facts, missions, locations, docs,
-intents, route, worker, query_plan, and full `sc_answer` (including guides/blueprint/loadout).
+**MCP tools:** resolve, prices, freshness, entity facts, missions, locations, docs,
+intents, route, worker, query_plan, and full `sc_answer`.
 
-**Ingest (Go):** `sc-search ingest init|status|sync` sources:
-`aliases|wiki|localization|uex|scmdb|scw|scw-blueprints`.
-Python ingest remains as a fallback during dual-track.
-
-`ErrUseBridge` remains only as a safety fallback for unexpected answer intents.
+**Ingest:** `sc-search ingest init|status|sync` for
+`aliases|wiki|localization|uex|scmdb|scw|scw-blueprints` (`zh` is an alias of `localization`).
 
 ## Build
 
@@ -20,13 +17,13 @@ go build -o sc-search ./cmd/sc-search
 
 ## Run MCP (stdio)
 
-From the repo root (or any subdirectory; the binary finds the root):
-
 ```bash
 ./go/sc-search mcp
+# or
+./scripts/run_mcp.sh
 ```
 
-Cursor / client config example:
+Cursor / client config:
 
 ```json
 {
@@ -37,12 +34,6 @@ Cursor / client config example:
     }
   }
 }
-```
-
-## Smoke
-
-```bash
-./go/sc-search bridge-smoke
 ```
 
 ## Tests
