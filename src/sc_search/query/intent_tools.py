@@ -1,8 +1,8 @@
 """Agent-layer intent → MCP tool playbook (deterministic retrieve contract).
 
-Agent LLM picks ``primary`` intent + slots; then follows ``tools`` in order.
-``sc_answer`` remains the one-shot fast path when the question is a single
-entity fact/price and no multi-constraint slots are needed.
+Client LLM picks ``primary`` + slots; ``sc_route`` expands this into a DAG
+(``router.dag.expand_dag``); ``sc_worker_run`` executes waves in parallel.
+``sc_answer`` remains the one-shot bypass for simple entity fact/price questions.
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ MCP_TOOLS = frozenset(
         "sc_entity_facts",
         "sc_list_missions",
         "sc_search_docs",
+        "sc_route",
+        "sc_worker_run",
     }
 )
 

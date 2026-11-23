@@ -11,14 +11,19 @@
 ```text
 用户提问
    │
-   ▼
-① 理解  定 primary + 槽位；纠正俗称；禁止先开浏览器 / 泛化 WebSearch
+   ├─ 单实体静态度/价 ──────────────────────────► sc_answer（旁路）
    │
    ▼
-② 检索  只调 sc-search 白名单；按「意图 → 工具」顺序取证（已有证据可跳过）
+① Router（客户端 LLM）  定 primary + slots；禁止先开浏览器 / 泛化 WebSearch
    │
    ▼
-③ 成文  证据包只是脚手架 → LLM 深度整理成玩家可读中文；库无字段不编造
+   sc_route → 本地按 INTENT_TOOLS 展开 DAG（带 needs，可并行）
+   │
+   ▼
+② Worker  sc_worker_run：按层并行取证；可自行加调；evidence 与 primary 明显不符时
+   │     replan_suggested（最多再规划 1 次）
+   ▼
+③ 成文  证据包只是脚手架 → 客户端 LLM 整理成玩家可读中文；库无字段不编造
    │
    ▼
 ④ 浏览器（可选）  仅当 path 需要且用户确认；交互站 leave_open 交给用户继续改
@@ -26,12 +31,12 @@
 
 | 阶段 | 做什么 | 不做什么 |
 | :--- | :--- | :--- |
-| ① 理解 | 判 `primary`、填槽位；俗称归一（如红枫物流→红风物流 / Red Wind Linehaul） | 先 WebSearch、先 Erkul |
-| ② 检索 | 白名单工具按序调用；单实体静态度/价可直接 `sc_answer` | 空搜、编造库外数字 |
+| ① Router | 判 `primary`、填槽位；俗称归一（如红枫物流→红风物流 / Red Wind Linehaul）；调 `sc_route` | 先 WebSearch、先 Erkul；手写工具依赖图 |
+| ② Worker | `sc_worker_run` 并行执行 DAG；白名单加调；不匹配则最多回退 1 次 | 空搜、编造库外数字 |
 | ③ 成文 | 归纳结论、对照字段、版本/来源、操作含义；可交叉多条 evidence | 原样甩 JSON、只贴链接 |
 | ④ 浏览器 | 见「浏览器子编排」 | 未确认就开；`mcp_only`+高置信仍开 |
 
-**默认入口**：单实体静态参数/物价 → 直接 `sc_answer`。口语复杂（声望、多约束任务、对比）→ 先定 `primary` 再跑剧本（不必先 `sc_query_plan`；该工具仅路由/调试可选）。
+**默认入口**：单实体静态参数/物价 → 直接 `sc_answer`（旁路）。口语复杂（声望、多约束任务、对比）→ `primary`+slots → `sc_route` → `sc_worker_run`（不必先 `sc_query_plan`；该工具仅调试可选）。
 
 ---
 
@@ -65,7 +70,19 @@
 | `patch_live` | — | `sc_data_freshness` 对照库版本；正文以官网为准 | browser_only |
 | `other` | — | `sc_answer` → resolve →（可选）`sc_query_plan`；勿空搜 | mcp_only |
 
-**白名单工具**：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`。
+**白名单工具**：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`、`sc_route`、`sc_worker_run`。
+
+**Router / Worker**：客户端 LLM 只出 `primary`+`slots`；DAG 由本地展开（`sc_route`）。Worker 可在 resolve 命中后自行加调 `sc_entity_facts`；`earn_meta`/`howto`/`bug_tip` 强工具全空时可加调 `sc_search_docs`/`sc_answer`（用整句 question）。
+
+回退信号（互斥优先看 mismatch）：
+
+| 字段 | 含义 | 客户端动作 |
+| :--- | :--- | :--- |
+| `mismatch` + `replan_suggested` | 有证据但类型与 `primary` 不符（规则 3） | 改 **primary**/slots，最多 1 次 |
+| `evidence_empty` + `slot_retry_suggested` | 无可用证据（空搜） | **先改 slots/检索词**，primary 可不动；最多 1 次 |
+| 两者皆假 | 证据可用 | 成文 |
+
+**槽位规范**：贸易/飞船可用中文俗称（有 alias）。任务/赚钱/docs 优先英文或 Wiki 标准译名；禁止把「开荒」「赚钱」「萌新」等口语塞进 `rank_keyword`/`activity` 当检索词（本地会丢弃元话语并回退到整句 question）。
 
 **写入/同步**（MCP 只读问答侧不触发）：`sync uex`｜`sync scmdb [--channel live|ptu]`｜`sync scw`｜`sync scw_blueprints`｜`sync wiki`｜`sync aliases`｜`sync zh`。
 

@@ -214,8 +214,17 @@ def sc_search_docs(query: str, limit: int = 5) -> str:
         return _err(str(exc))
 
 
-# Expose undecorated handlers for unit tests
-handlers = {
+def _parse_slots(slots_json: str | None) -> dict[str, Any]:
+    if not slots_json or not str(slots_json).strip():
+        return {}
+    raw = json.loads(slots_json)
+    if not isinstance(raw, dict):
+        raise ValueError("slots_json must be a JSON object")
+    return raw
+
+
+# Data-plane handlers (Worker invokes these; no router/worker meta-tools).
+worker_handlers = {
     "sc_answer": sc_answer,
     "sc_query_plan": sc_query_plan,
     "sc_resolve_name": sc_resolve_name,
@@ -225,4 +234,50 @@ handlers = {
     "sc_entity_facts": sc_entity_facts,
     "sc_list_missions": sc_list_missions,
     "sc_search_docs": sc_search_docs,
+}
+
+
+@mcp.tool()
+def sc_route(
+    question: str,
+    primary: str,
+    slots_json: str = "{}",
+    replan_count: int = 0,
+) -> str:
+    """Expand primary+slots into a parallel DAG plan (no DB fetch). Client LLM picks primary."""
+    try:
+        from sc_search.router.dag import expand_dag
+
+        slots = _parse_slots(slots_json)
+        plan = expand_dag(
+            question,
+            primary,
+            slots,
+            replan_count=replan_count,
+        )
+        return _ok(plan.to_dict())
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
+def sc_worker_run(plan_json: str) -> str:
+    """Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch."""
+    try:
+        from sc_search.worker.executor import run_plan
+
+        plan = json.loads(plan_json)
+        if not isinstance(plan, dict):
+            return _err("plan_json must be a JSON object")
+        data = run_plan(plan, worker_handlers)
+        return _ok(data)
+    except Exception as exc:
+        return _err(str(exc))
+
+
+# Expose undecorated handlers for unit tests
+handlers = {
+    **worker_handlers,
+    "sc_route": sc_route,
+    "sc_worker_run": sc_worker_run,
 }
