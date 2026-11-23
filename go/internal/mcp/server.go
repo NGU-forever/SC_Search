@@ -5,19 +5,22 @@ package mcp
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/frankxiong/sc-search/internal/bridge"
 	"github.com/frankxiong/sc-search/internal/query"
+	"github.com/frankxiong/sc-search/internal/router"
 )
 
 // NewServer builds the stdio MCP server with all tool names registered.
 func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "sc-search",
-		Version: "0.3.0-go-partial-native",
+		Version: "0.4.0-go-partial-native",
 	}, nil)
 
 	add := func(name, desc string, fn mcp.ToolHandlerFor[map[string]any, string]) {
@@ -217,8 +220,60 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 
 	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).", bridgeHandler("sc_query_plan"))
 	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).", bridgeHandler("sc_answer"))
-	add("sc_intents", "List valid Router primaries, slots, tools, and paths (machine-readable playbook).", bridgeHandler("sc_intents"))
-	add("sc_route", "Expand primary+slots into a parallel DAG plan (no DB fetch).", bridgeHandler("sc_route"))
+
+	add("sc_intents", "List valid Router primaries, slots, tools, and paths (machine-readable playbook).",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			data, err := query.IntentsCatalog()
+			if err != nil {
+				return textResult(errJSON(err.Error()), true)
+			}
+			return textResult(okJSON(data, map[string]any{}), false)
+		})
+
+	add("sc_route", "Expand primary+slots into a parallel DAG plan (no DB fetch).",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			question, _ := input["question"].(string)
+			primary, _ := input["primary"].(string)
+			slots := map[string]any{}
+			switch v := input["slots_json"].(type) {
+			case string:
+				if strings.TrimSpace(v) != "" {
+					if err := json.Unmarshal([]byte(v), &slots); err != nil {
+						return textResult(errJSON("slots_json must be a JSON object"), true)
+					}
+				}
+			case map[string]any:
+				slots = v
+			}
+			replan := asInt(input["replan_count"], 0)
+			requested := strings.TrimSpace(primary)
+			plan, err := router.ExpandDAG(question, primary, slots, replan)
+			if err != nil {
+				return textResult(errJSON(err.Error()), true)
+			}
+			body := map[string]any{
+				"primary":      plan.Primary,
+				"slots":        plan.Slots,
+				"question":     plan.Question,
+				"calls":        plan.Calls,
+				"path":         plan.Path,
+				"notes":        plan.Notes,
+				"replan_count": plan.ReplanCount,
+				"plan_intent":  plan.PlanIntent,
+			}
+			cat, _ := query.IntentsCatalog()
+			primaries, _ := cat["primaries"].([]any)
+			meta := map[string]any{
+				"primaries":         primaries,
+				"primary_requested": requested,
+				"primary_resolved":  plan.Primary,
+			}
+			if requested != "" && requested != plan.Primary {
+				meta["primary_fallback"] = true
+			}
+			return textResult(okJSON(body, meta), false)
+		})
+
 	add("sc_worker_run", "Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.", bridgeHandler("sc_worker_run"))
 
 	return server
