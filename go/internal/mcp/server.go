@@ -21,7 +21,7 @@ import (
 func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "sc-search",
-		Version: "0.5.0-go-partial-native",
+		Version: "0.6.0-go-partial-native",
 	}, nil)
 
 	add := func(name, desc string, fn mcp.ToolHandlerFor[map[string]any, string]) {
@@ -219,7 +219,20 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			return textResult(okJSON(data, withFreshness(data)), false)
 		})
 
-	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).", bridgeHandler("sc_query_plan"))
+	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			if db == nil {
+				return bridgeHandler("sc_query_plan")(ctx, req, input)
+			}
+			question, _ := input["question"].(string)
+			hint, _ := input["hint_entity"].(string)
+			data, err := query.QueryPlan(db, question, hint)
+			if err != nil {
+				return textResult(errJSON(err.Error()), true)
+			}
+			return textResult(okJSON(data, map[string]any{}), false)
+		})
+
 	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).", bridgeHandler("sc_answer"))
 
 	add("sc_intents", "List valid Router primaries, slots, tools, and paths (machine-readable playbook).",

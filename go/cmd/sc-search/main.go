@@ -10,6 +10,7 @@ import (
 	"github.com/frankxiong/sc-search/internal/bridge"
 	"github.com/frankxiong/sc-search/internal/db"
 	scmcp "github.com/frankxiong/sc-search/internal/mcp"
+	"github.com/frankxiong/sc-search/internal/query"
 )
 
 func main() {
@@ -47,6 +48,7 @@ func runMCP() error {
 		return err
 	}
 	caller := bridge.New(root)
+	query.SetGuidesRoot(root)
 	sqlDB, err := db.Open(root)
 	if err != nil {
 		// Still serve bridged tools if DB missing.

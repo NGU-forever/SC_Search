@@ -133,6 +133,14 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 			return errEnv(err), true
 		}
 		return okEnv(data, map[string]any{}), true
+	case "sc_query_plan":
+		question, _ := args["question"].(string)
+		hint, _ := args["hint_entity"].(string)
+		data, err := query.QueryPlan(db, question, hint)
+		if err != nil {
+			return errEnv(err), true
+		}
+		return okEnv(data, map[string]any{}), true
 	default:
 		return nil, false
 	}
