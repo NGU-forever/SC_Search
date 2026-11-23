@@ -28,7 +28,7 @@ func TestAnswerQuestionFacts(t *testing.T) {
 	}
 }
 
-func TestAnswerQuestionGuideUsesBridge(t *testing.T) {
+func TestAnswerQuestionEarnMetaNative(t *testing.T) {
 	root := planRepoRoot(t)
 	SetGuidesRoot(root)
 	sqlDB, err := db.Open(root)
@@ -37,8 +37,15 @@ func TestAnswerQuestionGuideUsesBridge(t *testing.T) {
 	}
 	defer sqlDB.Close()
 
-	_, err = AnswerQuestion(sqlDB, "萌新怎么赚钱开荒", "brief", "")
-	if err != ErrUseBridge {
-		t.Fatalf("want ErrUseBridge, got %v", err)
+	ans, err := AnswerQuestion(sqlDB, "萌新怎么赚钱开荒", "brief", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ans["intent"] != "earn_meta" {
+		t.Fatalf("intent=%v", ans["intent"])
+	}
+	draft, _ := ans["answer_draft"].(string)
+	if draft == "" {
+		t.Fatal("empty draft")
 	}
 }

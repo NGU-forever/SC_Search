@@ -33,7 +33,7 @@ const deepOrganizeHint = "有本地证据时：结合 answer_draft 与 evidence 
 // ErrUseBridge signals MCP should fall back to the Python bridge for this question.
 var ErrUseBridge = fmt.Errorf("answer: use python bridge")
 
-// AnswerQuestion is the Go sc_answer core. Complex acquisition/guide paths return ErrUseBridge.
+// AnswerQuestion is the Go sc_answer implementation (parity with Python answer_question).
 func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[string]any, error) {
 	level := strings.ToLower(strings.TrimSpace(detailLevel))
 	if level != "brief" && level != "full" {
@@ -52,21 +52,11 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 		}
 	}
 
-	// Early complex branches still on Python for parity.
 	primaryKind := ""
 	primary := ""
 	if len(entities) > 0 {
 		primary = str(entities[0]["canonical_name"])
 		primaryKind = str(entities[0]["kind"])
-	}
-	if obtainRE.MatchString(question) && (primaryKind == "blueprint" || ((primaryKind == "ship" || primaryKind == "item") && intent == "facts")) {
-		return nil, ErrUseBridge
-	}
-	if _, ok := guideIntents[intent]; ok {
-		return nil, ErrUseBridge
-	}
-	if intent == "loadout_calc" || intent == "mining_calc" {
-		return nil, ErrUseBridge
 	}
 
 	factLimit := briefFactLimit
@@ -78,10 +68,24 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 		docLimit = fullDocLimit
 	}
 
-	evidence := emptyEvidence()
-	evidence["entities"] = entities
 	live, _ := LiveGameVersion(db)
 	label := displayName(entities)
+
+	if obtainRE.MatchString(question) && primaryKind == "blueprint" && primary != "" {
+		return answerBlueprintObtain(db, question, plan, entities, label, primary, live, factLimit)
+	}
+	if obtainRE.MatchString(question) && (primaryKind == "ship" || primaryKind == "item") && primary != "" && intent == "facts" {
+		return answerShopObtain(db, plan, entities, label, primary, primaryKind, live, factLimit, priceLimit)
+	}
+	if _, ok := guideIntents[intent]; ok {
+		return answerGuideIntent(db, plan, entities, label, primary, live)
+	}
+	if intent == "loadout_calc" || intent == "mining_calc" {
+		return answerCalcIntent(db, question, plan, entities, label, primary, live, factLimit)
+	}
+
+	evidence := emptyEvidence()
+	evidence["entities"] = entities
 	followUps := []string{}
 	detailAvailable := false
 	draft := ""

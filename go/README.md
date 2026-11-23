@@ -1,7 +1,12 @@
 # SC Search (Go)
 
-Dual-track Go MCP server. **P1:** tools bridge to the existing Python handlers via  
-`python -m sc_search.mcp_server.bridge`.
+Dual-track Go MCP server.
+
+**Native in Go:** resolve, prices, freshness, entity facts, missions, locations, docs,
+intents, route, worker, query_plan, and full `sc_answer` (including guides/blueprint/loadout).
+
+**Still Python:** ingest CLI/adapters (P4). `ErrUseBridge` remains only as a safety fallback
+for unexpected answer intents.
 
 ## Build
 
