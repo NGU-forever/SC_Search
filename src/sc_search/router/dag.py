@@ -169,6 +169,15 @@ def expand_dag(
             args = _args_for(
                 tool, slots=cleaned, question=question, resolve_id=None
             )
+        # earn_meta with only meta activity → empty filters would dump unrelated missions
+        if (
+            tool == "sc_list_missions"
+            and key == "earn_meta"
+            and not args.get("faction")
+            and not args.get("rank_keyword")
+            and not args.get("system")
+        ):
+            continue
         calls.append({"id": cid, "tool": tool, "args": args, "needs": needs})
 
     return RoutePlan(

@@ -31,8 +31,11 @@ def test_earn_meta_parallel_roots() -> None:
 
 def test_earn_meta_drops_meta_rank_uses_question_for_docs() -> None:
     plan = expand_dag("萌新怎么赚钱", "earn_meta", {"activity": "开荒"})
+    tools = [c["tool"] for c in plan.calls]
+    # No unfiltered mission dump when activity is meta-only.
+    assert "sc_list_missions" not in tools
+    assert "sc_search_docs" in tools
     by_tool = {c["tool"]: c for c in plan.calls}
-    assert "rank_keyword" not in (by_tool["sc_list_missions"].get("args") or {})
     assert by_tool["sc_search_docs"]["args"]["query"] == "萌新怎么赚钱"
 
 

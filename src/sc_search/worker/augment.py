@@ -76,12 +76,16 @@ def maybe_augment(
             _has_ok_data(results, t)
             for t in ("sc_list_missions", "sc_search_docs", "sc_answer", "sc_entity_facts")
         )
+        tried_tools = {c.get("tool") for c in calls} | {
+            row.get("tool") for row in results.values()
+        }
         if not strong_ok:
             for tool in _EMPTY_AUGMENT_TOOLS:
                 if tool not in MCP_TOOLS:
                     continue
-                # Skip if plan already had this tool with same question and it failed —
-                # still retry once with explicit question arg.
+                # Do not re-run tools already attempted in this plan.
+                if tool in tried_tools:
+                    continue
                 cid = f"aug_empty_{tool}"
                 if cid in existing_ids:
                     continue
@@ -99,5 +103,6 @@ def maybe_augment(
                     }
                 )
                 existing_ids.add(cid)
+                tried_tools.add(tool)
 
     return extra
