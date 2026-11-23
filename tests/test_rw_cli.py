@@ -60,3 +60,36 @@ def test_rw_run_trade(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: p
 
 def test_rw_bad_slots() -> None:
     assert rw.main(["run", "q", "--primary", "trade", "--slots", "not-json"]) == 1
+
+
+def test_rw_intents(capsys: pytest.CaptureFixture[str]) -> None:
+    assert rw.main(["intents"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    primaries = {r["primary"] for r in rows}
+    assert "trade" in primaries and "earn_meta" in primaries
+
+
+def test_rw_run_compact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = tmp_path / "rw2.sqlite"
+    _seed(db)
+    monkeypatch.setenv("SC_SEARCH_DB", str(db))
+    code = rw.main(
+        [
+            "run",
+            "黄金哪里卖最贵",
+            "--primary",
+            "trade",
+            "--slots",
+            '{"commodity":"黄金","side":"sell"}',
+            "--compact",
+        ]
+    )
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert "route" not in out
+    assert out["evidence_count"] >= 1
+    assert out["mismatch"] is False
+    assert "results" in out
+
