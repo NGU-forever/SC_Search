@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
-# Launch sc-search MCP over stdio. Resolves repo root from this script
-# so MCP hosts do not need a correct relative cwd or resolved venv symlink.
+# Launch sc-search MCP over stdio. Prefers the Go binary; falls back to Python.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PY="$ROOT/.venv/bin/python"
-if [[ ! -x "$PY" ]]; then
-  echo "sc-search MCP: missing $PY (create .venv and pip install -e .)" >&2
-  exit 1
-fi
 export SC_SEARCH_DB="${SC_SEARCH_DB:-$ROOT/data/sc_knowledge.sqlite}"
 cd "$ROOT"
+
+GO_BIN="$ROOT/go/sc-search"
+if [[ ! -x "$GO_BIN" ]]; then
+  if command -v go >/dev/null 2>&1; then
+    (cd "$ROOT/go" && go build -o sc-search ./cmd/sc-search)
+  fi
+fi
+if [[ -x "$GO_BIN" ]]; then
+  exec "$GO_BIN" mcp
+fi
+
+PY="$ROOT/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  echo "sc-search MCP: missing Go binary and $PY" >&2
+  exit 1
+fi
+echo "sc-search MCP: Go binary missing; falling back to Python" >&2
 exec "$PY" -m sc_search.mcp_server

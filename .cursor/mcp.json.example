@@ -1,12 +1,11 @@
 {
   "mcpServers": {
     "sc-search": {
-      "command": "/绝对路径/SC_Search/.venv/bin/python",
-      "args": ["-m", "sc_search.mcp_server"],
+      "command": "/绝对路径/SC_Search/go/sc-search",
+      "args": ["mcp"],
       "cwd": "/绝对路径/SC_Search",
       "env": {
-        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite",
-        "PYTHONPATH": "/绝对路径/SC_Search/src"
+        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite"
       }
     }
   }

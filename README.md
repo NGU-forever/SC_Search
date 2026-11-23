@@ -90,10 +90,11 @@ python -m sc_search.ingest status
 1. 先确认本机能启动 MCP（仓库根目录）：
 
 ```bash
-# macOS / Linux
+# macOS / Linux — prefers Go binary (builds go/sc-search if needed)
 ./scripts/run_mcp.sh
-# 或
-.venv/bin/python -m sc_search.mcp_server
+# 或显式：
+#   ./go/sc-search mcp
+# Python 回退：.venv/bin/python -m sc_search.mcp_server
 ```
 
 ```powershell

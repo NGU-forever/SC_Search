@@ -21,4 +21,4 @@ cd go && go build -o sc-search ./cmd/sc-search
 # Cursor MCP: command=<repo>/go/sc-search  args=["mcp"]
 ```
 
-说明见 [`go/README.md`](go/README.md)。Go 已支持 `sc-search ingest init|status|sync aliases|wiki|localization|uex`；scmdb/scw 仍用 `python -m sc_search.ingest`。
+说明见 [`go/README.md`](go/README.md)。Go ingest：`sc-search ingest init|status|sync aliases|wiki|localization|uex|scmdb|scw|scw-blueprints`（Python ingest 仍可作回退）。

@@ -15,6 +15,10 @@ data/raw/
 # Local MCP paths (use .cursor/mcp.json.example)
 .cursor/mcp.json
 
+# Go MCP binary (built by scripts/run_mcp.sh or `go build`)
+go/sc-search
+go/sc-search.exe
+
 # Keep local; do not publish
 TIPS.md
 GEMINI.md

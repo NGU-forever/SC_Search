@@ -53,6 +53,9 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  ingest sync wiki       fetch ship extracts from starcitizen.tools\n")
 	fmt.Fprintf(os.Stderr, "  ingest sync localization  apply 42kit global.ini (cache or download)\n")
 	fmt.Fprintf(os.Stderr, "  ingest sync uex          fetch UEX prices (needs UEX_API_TOKEN)\n")
+	fmt.Fprintf(os.Stderr, "  ingest sync scmdb        fetch SCMDB missions/blueprints\n")
+	fmt.Fprintf(os.Stderr, "  ingest sync scw          fetch star-citizen.wiki vehicles\n")
+	fmt.Fprintf(os.Stderr, "  ingest sync scw-blueprints  fetch SCW blueprints\n")
 }
 
 func runMCP() error {
@@ -128,7 +131,7 @@ func runIngest(args []string) error {
 		return nil
 	case "sync":
 		if len(args) < 2 {
-			return fmt.Errorf("usage: sc-search ingest sync <aliases|wiki|localization|uex>")
+			return fmt.Errorf("usage: sc-search ingest sync <aliases|wiki|localization|uex|scmdb|scw|scw-blueprints>")
 		}
 		conn, err := ingest.Open(path)
 		if err != nil {
@@ -179,8 +182,46 @@ func runIngest(args []string) error {
 			})
 			fmt.Println(string(payload))
 			return nil
+		case "scmdb":
+			channel := "live"
+			version := ""
+			if len(args) >= 3 {
+				channel = args[2]
+			}
+			if len(args) >= 4 {
+				version = args[3]
+			}
+			n, err := ingest.SyncScmdbLive(conn, root, channel, version)
+			if err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"ok": true, "source": "scmdb", "row_count": n, "db": path,
+			})
+			fmt.Println(string(payload))
+			return nil
+		case "scw":
+			n, err := ingest.SyncScwVehicles(conn, nil)
+			if err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"ok": true, "source": "scw_api", "row_count": n, "db": path,
+			})
+			fmt.Println(string(payload))
+			return nil
+		case "scw-blueprints":
+			n, err := ingest.SyncScwBlueprints(conn, nil)
+			if err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"ok": true, "source": "scw_blueprint", "row_count": n, "db": path,
+			})
+			fmt.Println(string(payload))
+			return nil
 		default:
-			return fmt.Errorf("unknown sync source %q (Go: aliases|wiki|localization|uex; use Python for scmdb/scw)", args[1])
+			return fmt.Errorf("unknown sync source %q", args[1])
 		}
 	default:
 		return fmt.Errorf("unknown ingest subcommand %q", args[0])
