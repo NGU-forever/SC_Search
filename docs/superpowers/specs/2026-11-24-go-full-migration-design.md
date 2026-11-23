@@ -1,7 +1,7 @@
 # SC Search — Full Go Migration Design
 
 **Date:** 2026-11-24  
-**Status:** In progress — P0–P4 code done; P5 scripts/example pointed at Go (Python fallback)
+**Status:** Complete for dual-track goals — P0–P5 done; Python kept as optional fallback
 
 ## Progress (2026-11-24)
 
@@ -12,7 +12,7 @@
 | P2 native query tools | done | prices/facts/missions/docs/plan/answer … through `3c960b8` |
 | P3 router/worker | done | `189b27b`, `7663970` |
 | P4 ingest | done (code) | all sync sources in Go; commits rolling |
-| P5 cutover | partial | `scripts/run_mcp.sh` + mcp.json.example → Go; Python fallback kept |
+| P5 cutover | done | `scripts/run_mcp.sh` + mcp.json.example → Go; Python runtime retained as fallback |
 
 ## Goals
 

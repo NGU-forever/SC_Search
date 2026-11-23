@@ -67,7 +67,7 @@ Order: resolve → prices → freshness → entities → missions → locations 
 
 ## Task 6: P5 — Cutover
 
-- [ ] Default MCP → Go binary
-- [ ] Update `ORCHESTRATION.md` / `AGENTS.md` / README
-- [ ] Remove or archive Python runtime
+- [x] Default MCP → Go binary (`scripts/run_mcp.sh`, `.cursor/mcp.json.example`)
+- [x] Update `ORCHESTRATION.md` / `AGENTS.md` / README
+- [ ] Remove or archive Python runtime (kept as dual-track fallback for now)
 - [ ] Gemini final test+commit

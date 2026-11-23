@@ -1,6 +1,6 @@
 # SC Search — 问答编排（ORCHESTRATION）
 
-由 [AGENTS.md](AGENTS.md) 引用的完整流水线。事实数据优先走本地 MCP **`sc-search`**；浏览器只作确认后的补充，不是默认第一步。
+由 [AGENTS.md](AGENTS.md) 引用的完整流水线。事实数据优先走本地 MCP **`sc-search`**（默认 Go：`./scripts/run_mcp.sh` → `go/sc-search mcp`；Python 仅作回退）；浏览器只作确认后的补充，不是默认第一步。
 
 机器可读检索契约：[`src/sc_search/query/intent_tools.py`](src/sc_search/query/intent_tools.py) 的 `INTENT_TOOLS`（与下文剧本表保持一致）。
 
