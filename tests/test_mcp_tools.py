@@ -101,3 +101,35 @@ def test_mcp_sc_list_missions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert raw["ok"] is True
     assert len(raw["data"]) >= 2
     assert all("Red Wind" in (r.get("contractor") or "") for r in raw["data"])
+
+
+def test_mcp_list_missions_no_match_is_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = tmp_path / "missions.sqlite"
+    conn = connect(db)
+    init_db(conn)
+    _seed_missions(conn)
+    conn.close()
+    monkeypatch.setenv("SC_SEARCH_DB", str(db))
+
+    raw = json.loads(
+        mcp_server.handlers["sc_list_missions"](
+            faction="Nonexistent Faction XYZ",
+            rank_keyword="zzzz-no-such",
+            limit=5,
+        )
+    )
+    assert raw["ok"] is True
+    assert raw["data"] == []
+    assert raw["meta"].get("why") == "no_match"
+    assert "message" in raw["meta"]
+
+
+def test_mcp_best_prices_no_match_is_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = tmp_path / "t.sqlite"
+    _seed(db)
+    monkeypatch.setenv("SC_SEARCH_DB", str(db))
+
+    raw = json.loads(mcp_server.handlers["sc_best_prices"]("NoSuchCommodityXYZ", side="sell"))
+    assert raw["ok"] is True
+    assert raw["data"] == []
+    assert raw["meta"].get("why") == "no_match"

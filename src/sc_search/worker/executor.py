@@ -10,9 +10,11 @@ from sc_search.worker.augment import maybe_augment
 from sc_search.worker.bind import bind_args
 from sc_search.worker.mismatch import (
     check_mismatch,
+    collect_failed_calls,
     evidence_is_empty,
     replan_suggested,
     slot_retry_suggested,
+    strong_family_missing,
 )
 
 Handler = Callable[..., str]
@@ -121,6 +123,13 @@ def run_plan(
         by_id.update(aug_by_id)
         augmented_calls.extend(extra)
 
+    def _useful(data: Any) -> bool:
+        if data is None:
+            return False
+        if data == [] or data == {}:
+            return False
+        return True
+
     evidence = [
         {
             "id": r["id"],
@@ -130,23 +139,29 @@ def run_plan(
             "meta": r.get("meta") or {},
         }
         for r in call_results
-        if r.get("ok") and r.get("data") is not None
+        if r.get("ok") and _useful(r.get("data"))
     ]
 
     mismatch = check_mismatch(primary, call_results)
     empty = evidence_is_empty(evidence)
+    strong_missing = strong_family_missing(primary, call_results)
+    failed_calls = collect_failed_calls(call_results)
     suggest_replan = replan_suggested(mismatch, replan_count, limit=1)
     suggest_slots = slot_retry_suggested(
         evidence_empty=empty,
         mismatch=mismatch,
         replan_count=replan_count,
         limit=1,
+        strong_missing=strong_missing,
     )
 
     if suggest_replan:
         hint = "证据类型与意图明显不符，请改 primary/slots 后重跑（仅一次）"
     elif suggest_slots:
-        hint = "证据为空，请改 slots/检索词（英文或标准译名）后重跑；勿把开荒/赚钱等口语当 rank_keyword"
+        hint = (
+            "主内容工具无匹配或证据为空，请改 slots/检索词（英文或标准译名）后重跑；"
+            "勿把开荒/赚钱等口语当 rank_keyword"
+        )
     else:
         hint = plan.get("notes") or ""
 
@@ -164,6 +179,8 @@ def run_plan(
         "mismatch": mismatch,
         "replan_suggested": suggest_replan,
         "evidence_empty": empty,
+        "strong_family_missing": strong_missing,
+        "failed_calls": failed_calls,
         "slot_retry_suggested": suggest_slots,
         "reasoning_hint": hint,
     }

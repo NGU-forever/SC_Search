@@ -79,8 +79,10 @@
 | 字段 | 含义 | 客户端动作 |
 | :--- | :--- | :--- |
 | `mismatch` + `replan_suggested` | 有证据但类型与 `primary` 不符（规则 3） | 改 **primary**/slots，最多 1 次 |
-| `evidence_empty` + `slot_retry_suggested` | 无可用证据（空搜） | **先改 slots/检索词**，primary 可不动；最多 1 次 |
+| `slot_retry_suggested`（`evidence_empty` 或 `strong_family_missing`） | 无可用证据，或主内容工具 `no_match`/空（即便 `resolve` 命中） | **先改 slots/检索词**，primary 可不动；最多 1 次；可看 `failed_calls` |
 | 两者皆假 | 证据可用 | 成文 |
+
+数据面空结果：`ok:true` + `data:[]`/`{}` + `meta.why=no_match`（可带 `near_misses`）；`ok:false` 仅表示异常。
 
 **槽位规范**：贸易/飞船可用中文俗称（有 alias）。任务/赚钱/docs 优先英文或 Wiki 标准译名；禁止把「开荒」「赚钱」「萌新」等口语塞进 `rank_keyword`/`activity` 当检索词（本地会丢弃元话语并回退到整句 question）。
 

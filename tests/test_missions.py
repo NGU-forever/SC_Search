@@ -144,3 +144,62 @@ def test_list_missions_system_filter(conn_with_missions) -> None:
 def test_list_missions_empty_faction(conn_with_missions) -> None:
     rows = list_missions(conn_with_missions, faction="Nonexistent Faction XYZ", limit=5)
     assert rows == []
+
+
+def test_list_missions_tokenized_rank_keyword(conn_with_missions) -> None:
+    """Multi-token rank_keyword matches underscore-joined canonical + aliases."""
+    run_id = start_run(conn_with_missions, "scmdb", "4.10.3")
+    eid = upsert_entity(
+        conn_with_missions,
+        kind="mission",
+        canonical_name="BitZeros_Pyro_RegionA_ShipHeist",
+        game_version="4.10.3",
+    )
+    upsert_alias(conn_with_missions, eid, "BitZeros_Pyro_RegionA_ShipHeist", "en", "scmdb")
+    upsert_alias(conn_with_missions, eid, "Goods for the Getting", "en", "scmdb")
+    upsert_alias(conn_with_missions, eid, "有好货", "zh", "scmdb")
+    upsert_fact(
+        conn_with_missions,
+        entity_id=eid,
+        key="contractor",
+        value_text="Bit Zeros",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run_id,
+    )
+    upsert_fact(
+        conn_with_missions,
+        entity_id=eid,
+        key="mission_type",
+        value_text="ShipHeist",
+        source="scmdb",
+        game_version="4.10.3",
+        ingest_run_id=run_id,
+    )
+    conn_with_missions.commit()
+
+    rows = list_missions(
+        conn_with_missions,
+        faction="Bit Zeros",
+        rank_keyword="Bit Zeros ship heist",
+        limit=5,
+    )
+    assert rows, "tokenized keyword should hit BitZeros_...ShipHeist / Goods for the Getting"
+    assert any("ShipHeist" in (r.get("canonical_name") or "") for r in rows)
+    assert any(
+        "Goods" in (r.get("title") or "") or "有好货" in (r.get("title") or "") for r in rows
+    )
+
+
+def test_list_missions_single_token_still_works(conn_with_missions) -> None:
+    rows = list_missions(
+        conn_with_missions,
+        faction="Red Wind Linehaul",
+        rank_keyword="Junior",
+        limit=5,
+    )
+    assert rows
+    assert all(
+        "Junior" in (r.get("title") or "") or "Junior" in (r.get("canonical_name") or "")
+        for r in rows
+    )

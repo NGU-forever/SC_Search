@@ -14,7 +14,7 @@ from sc_search.query.freshness import data_freshness, live_game_version
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.plan import query_plan
 from sc_search.query.resolve import resolve_name
-from sc_search.query.missions import list_missions
+from sc_search.query.missions import list_missions, mission_near_misses
 from sc_search.query.search import search_docs
 
 # Pin to MCP Python SDK 1.x FastMCP: host tool discovery is more reliable
@@ -34,6 +34,21 @@ def _meta_from_rows(rows: list[dict]) -> dict[str, Any]:
 
 def _ok(data: Any, meta: dict[str, Any] | None = None) -> str:
     return json.dumps({"ok": True, "data": data, "meta": meta or {}}, ensure_ascii=False)
+
+
+def _no_match(
+    message: str,
+    *,
+    data: Any = None,
+    near_misses: list[dict[str, Any]] | None = None,
+) -> str:
+    """Empty result that is not an error — client should retry slots, not treat as crash."""
+    if data is None:
+        data = []
+    meta: dict[str, Any] = {"why": "no_match", "message": message}
+    if near_misses:
+        meta["near_misses"] = near_misses
+    return _ok(data, meta)
 
 
 def _err(message: str) -> str:
@@ -74,7 +89,7 @@ def sc_best_prices(
         try:
             data = best_prices(conn, commodity, side=side, system=system, limit=limit)
             if not data:
-                return _err(f"no prices for commodity={commodity!r} side={side!r}")
+                return _no_match(f"no prices for commodity={commodity!r} side={side!r}")
             return _ok(data, _meta_from_rows(data))
         finally:
             conn.close()
@@ -90,7 +105,7 @@ def sc_terminal_prices(terminal: str, side: str | None = None) -> str:
         try:
             data = terminal_prices(conn, terminal, side=side)
             if not data:
-                return _err(f"no prices for terminal={terminal!r}")
+                return _no_match(f"no prices for terminal={terminal!r}")
             return _ok(data, _meta_from_rows(data))
         finally:
             conn.close()
@@ -120,7 +135,7 @@ def sc_entity_facts(name_or_id: str) -> str:
         try:
             data = entity_facts(conn, name_or_id)
             if data is None:
-                return _err(f"entity not found: {name_or_id!r}")
+                return _no_match(f"entity not found: {name_or_id!r}", data={})
             meta = {"game_version": data["entity"].get("game_version")}
             return _ok(data, meta)
         finally:
@@ -185,12 +200,20 @@ def sc_list_missions(
                 limit=limit,
             )
             if not data:
-                return _err(
+                msg = (
                     "no missions matched filters"
                     + (f" faction={faction!r}" if faction else "")
                     + (f" rank_keyword={rank_keyword!r}" if rank_keyword else "")
                     + (f" system={system!r}" if system else "")
                 )
+                near = mission_near_misses(
+                    conn,
+                    faction=faction,
+                    rank_keyword=rank_keyword,
+                    system=system,
+                    limit=3,
+                )
+                return _no_match(msg, near_misses=near or None)
             return _ok(data, _meta_from_rows(data))
         finally:
             conn.close()
@@ -206,7 +229,7 @@ def sc_search_docs(query: str, limit: int = 5) -> str:
         try:
             data = search_docs(conn, query, limit=limit)
             if not data:
-                return _err(f"no documents matched query={query!r}")
+                return _no_match(f"no documents matched query={query!r}")
             return _ok(data, _meta_from_rows(data))
         finally:
             conn.close()

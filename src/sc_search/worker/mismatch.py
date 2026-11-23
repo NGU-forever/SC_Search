@@ -27,6 +27,30 @@ _EXPECTED: dict[str, frozenset[str]] = {
     "other": frozenset({"answer", "resolve", "plan", "facts", "docs", "missions", "prices"}),
 }
 
+# Content families that must be present for the primary — resolve alone must not
+# suppress slot_retry when these are missing (e.g. missions for mission_*).
+_STRONG: dict[str, frozenset[str]] = {
+    "trade": frozenset({"prices"}),
+    "trade_route": frozenset({"prices"}),
+    "ship_stats": frozenset({"facts"}),
+    "ship_buy": frozenset({"facts"}),
+    "mission_rep": frozenset({"missions"}),
+    "mission_money": frozenset({"missions"}),
+    "blueprint": frozenset({"facts"}),
+    "crafting": frozenset({"facts"}),
+    "loadout": frozenset({"facts"}),
+    "mining": frozenset({"facts"}),
+    "bug_tip": frozenset({"docs"}),
+    "client_help": frozenset({"docs"}),
+    "howto": frozenset({"docs", "answer"}),
+    "earn_meta": frozenset({"missions"}),
+    "pledge_meta": frozenset({"docs"}),
+    "event_guide": frozenset({"docs", "freshness"}),
+    "lore_docs": frozenset({"docs"}),
+    "patch_live": frozenset({"freshness"}),
+    "other": frozenset(),
+}
+
 _TOOL_FAMILY = {
     "sc_best_prices": "prices",
     "sc_terminal_prices": "prices",
@@ -43,18 +67,58 @@ _TOOL_FAMILY = {
 _WEAK_ALONE = frozenset({"docs", "freshness", "plan"})
 
 
+def _data_useful(data: Any) -> bool:
+    if data is None:
+        return False
+    if data == [] or data == {}:
+        return False
+    return True
+
+
 def families_present(call_results: list[dict[str, Any]]) -> set[str]:
     found: set[str] = set()
     for row in call_results:
         if not row.get("ok"):
             continue
         data = row.get("data")
-        if data is None or data == [] or data == {}:
+        if not _data_useful(data):
             continue
         fam = _TOOL_FAMILY.get(str(row.get("tool") or ""))
         if fam:
             found.add(fam)
     return found
+
+
+def strong_family_missing(primary: str, call_results: list[dict[str, Any]]) -> bool:
+    """True when primary expects a strong content family that is absent."""
+    strong = _STRONG.get(primary)
+    if strong is None:
+        strong = _STRONG["other"]
+    if not strong:
+        return False
+    present = families_present(call_results)
+    return not bool(present & strong)
+
+
+def collect_failed_calls(call_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Summarize error / no_match calls for client slot retry."""
+    out: list[dict[str, Any]] = []
+    for row in call_results:
+        tool = row.get("tool")
+        args = row.get("args") or {}
+        meta = row.get("meta") or {}
+        if not row.get("ok"):
+            out.append({"tool": tool, "args": args, "reason": row.get("error") or "error"})
+            continue
+        if meta.get("why") == "no_match":
+            out.append(
+                {
+                    "tool": tool,
+                    "args": args,
+                    "reason": meta.get("message") or "no_match",
+                }
+            )
+    return out
 
 
 def check_mismatch(primary: str, call_results: list[dict[str, Any]]) -> bool:
@@ -88,10 +152,11 @@ def slot_retry_suggested(
     mismatch: bool,
     replan_count: int,
     limit: int = 1,
+    strong_missing: bool = False,
 ) -> bool:
-    """Soft signal: empty evidence → retry slots/query (not primary type mismatch)."""
+    """Soft signal: empty evidence or missing strong family → retry slots/query."""
     if mismatch:
         return False
-    if not evidence_empty:
+    if int(replan_count) >= int(limit):
         return False
-    return int(replan_count) < int(limit)
+    return bool(evidence_empty) or bool(strong_missing)

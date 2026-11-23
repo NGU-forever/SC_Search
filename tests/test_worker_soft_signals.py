@@ -18,6 +18,7 @@ from sc_search.worker.mismatch import (
     check_mismatch,
     evidence_is_empty,
     slot_retry_suggested,
+    strong_family_missing,
 )
 from sc_search.worker.slots import docs_query, is_meta_keyword, mission_rank_keyword
 
@@ -107,7 +108,7 @@ class TestEvidenceIsEmpty:
 
 
 class TestSlotRetrySuggested:
-    """slot_retry_suggested: only when evidence empty, no mismatch, replan_count < 1."""
+    """slot_retry_suggested: empty evidence OR strong_missing, no mismatch, replan_count < 1."""
 
     def test_empty_no_mismatch(self) -> None:
         assert slot_retry_suggested(evidence_empty=True, mismatch=False, replan_count=0) is True
@@ -119,8 +120,39 @@ class TestSlotRetrySuggested:
     def test_not_empty_suppresses(self) -> None:
         assert slot_retry_suggested(evidence_empty=False, mismatch=False, replan_count=0) is False
 
+    def test_strong_missing_triggers(self) -> None:
+        assert slot_retry_suggested(
+            evidence_empty=False, mismatch=False, replan_count=0, strong_missing=True
+        ) is True
+
     def test_already_retried(self) -> None:
         assert slot_retry_suggested(evidence_empty=True, mismatch=False, replan_count=1) is False
+
+
+class TestStrongFamilyMissing:
+    def test_mission_money_resolve_only(self) -> None:
+        rows = [
+            {
+                "id": "r1",
+                "tool": "sc_resolve_name",
+                "ok": True,
+                "data": [{"canonical_name": "Bit Zeros", "kind": "faction"}],
+            },
+            {
+                "id": "c1",
+                "tool": "sc_list_missions",
+                "ok": True,
+                "data": [],
+                "meta": {"why": "no_match"},
+            },
+        ]
+        assert strong_family_missing("mission_money", rows) is True
+
+    def test_mission_money_with_missions(self) -> None:
+        rows = [
+            {"id": "c1", "tool": "sc_list_missions", "ok": True, "data": [{"name": "Heist"}]},
+        ]
+        assert strong_family_missing("mission_money", rows) is False
 
 
 class TestMismatchRules:
@@ -326,3 +358,53 @@ class TestRunPlanSoftSignals:
         assert out["evidence_empty"] is False, "Hauling missions should populate evidence"
         assert out["mismatch"] is False
         assert out["slot_retry_suggested"] is False
+
+    def test_mission_money_resolve_hit_missions_no_match_slot_retry(self) -> None:
+        """DeepSeek scenario: resolve hits faction but missions empty → slot_retry."""
+        plan = expand_dag(
+            "Bit Zeros ship heist",
+            "mission_money",
+            {"faction": "Bit Zeros", "activity": "Bit Zeros ship heist"},
+        )
+
+        def _resolve(**_kwargs: Any) -> str:
+            return json.dumps(
+                {
+                    "ok": True,
+                    "data": [{"canonical_name": "Bit Zeros", "kind": "faction"}],
+                    "meta": {},
+                }
+            )
+
+        def _missions_empty(**_kwargs: Any) -> str:
+            return json.dumps(
+                {
+                    "ok": True,
+                    "data": [],
+                    "meta": {"why": "no_match", "message": "no missions matched"},
+                }
+            )
+
+        def _null(**_kwargs: Any) -> str:
+            return json.dumps({"ok": True, "data": None, "meta": {}})
+
+        handlers = {
+            "sc_resolve_name": _resolve,
+            "sc_list_missions": _missions_empty,
+            "sc_answer": _null,
+            "sc_entity_facts": _null,
+            "sc_best_prices": _null,
+            "sc_terminal_prices": _null,
+            "sc_search_docs": _null,
+            "sc_data_freshness": _null,
+            "sc_query_plan": _null,
+        }
+        out = run_plan(plan.to_dict(), handlers)
+        assert out["mismatch"] is False
+        assert out["strong_family_missing"] is True
+        assert out["slot_retry_suggested"] is True
+        assert any(f.get("tool") == "sc_list_missions" for f in out.get("failed_calls") or [])
+        # Empty mission arrays must not pollute evidence
+        assert all(
+            (e.get("data") not in ([], {})) for e in out["evidence"]
+        )
