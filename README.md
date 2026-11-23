@@ -134,21 +134,28 @@ cp .cursor/mcp.json.example .cursor/mcp.json
 
 ### 5. 开始提问
 
-回答链路：Agent 理解意图与槽位 → `sc-search` MCP 检索证据 → Agent 依据证据成文（简单题可直接 `sc_answer`）。
+回答链路（同进程 **Router → Worker**，LLM 仍在豆包/Cursor 客户端）：
 
-在豆包对话里直接问即可（建议显式选中 `sc-search` 连接器）。Agent 应优先调用本项目的工具，例如：
+1. **简单**单实体静态度/价 → 直接 `sc_answer`（旁路）
+2. **复杂**题 → 客户端定 `primary` + slots → `sc_route`（本地展开可并行 DAG）→ `sc_worker_run`（并行取证）→ 客户端成文
+3. 若返回 `replan_suggested`：改意图再跑（最多 1 次）；若 `slot_retry_suggested`：先改检索词/槽位
+
+完整编排见 [ORCHESTRATION.md](ORCHESTRATION.md)。在豆包里直接问即可（建议勾选 `sc-search`）。常用工具：
 
 | 你想问的 | 大致会用到的工具 |
 | :--- | :--- |
-| （任意 SC 事实问题，默认） | `sc_answer`（一键：归类+查库+短答草稿） |
-| （只要路由/调试） | `sc_query_plan`（意图路由：MCP vs 浏览器） |
-| 「黄金在哪卖贵？」 | `sc_best_prices` |
+| （简单事实/物价，默认快路径） | `sc_answer` |
+| （复杂题：意图→并行取证） | `sc_route` → `sc_worker_run` |
+| （只要路由/调试） | `sc_query_plan` |
+| 「黄金在哪卖贵？」 | `sc_best_prices` / 或走 route+worker |
 | 「Lorville 都卖什么价？」 | `sc_terminal_prices` |
 | 「大白鲨是哪艘船？」 | `sc_resolve_name` |
 | 「Carrack 载货 / 厂家？」 | `sc_entity_facts` |
 | 「红风 Junior 能接什么任务？」 | `sc_list_missions` |
 | 「Carrack 是什么船？」 | `sc_search_docs` |
 | 「数据是什么时候同步的？」 | `sc_data_freshness` |
+
+槽位提示：贸易/飞船可用中文俗称；任务/赚钱类请尽量填英文或标准译名，避免把「开荒」「赚钱」当检索词。
 
 也可以自己先确认工具是否正常：问一句「用 sc-search 查一下黄金卖出价」。
 
