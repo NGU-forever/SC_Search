@@ -159,6 +159,15 @@ cp .cursor/mcp.json.example .cursor/mcp.json
 
 也可以自己先确认工具是否正常：问一句「用 sc-search 查一下黄金卖出价」。
 
+本地不经豆包调试 Router/Worker：
+
+```bash
+python -m sc_search.rw bypass "卡拉克货舱多大"
+python -m sc_search.rw run "黄金哪里卖最贵" --primary trade --slots '{"commodity":"黄金","side":"sell"}'
+```
+
+退出码：`0` 成功；`1` 工具失败；`2` 成功但建议重规划/改槽位（`replan_suggested` 或 `slot_retry_suggested`）。
+
 ---
 
 ## 游戏更新后怎么办
