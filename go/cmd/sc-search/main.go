@@ -47,8 +47,9 @@ func main() {
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "usage: sc-search <mcp|bridge-smoke|ingest|help>\n")
-	fmt.Fprintf(os.Stderr, "  ingest init     create/apply schema\n")
-	fmt.Fprintf(os.Stderr, "  ingest status   show recent ingest_runs\n")
+	fmt.Fprintf(os.Stderr, "  ingest init            create/apply schema\n")
+	fmt.Fprintf(os.Stderr, "  ingest status          show recent ingest_runs\n")
+	fmt.Fprintf(os.Stderr, "  ingest sync aliases    load data/seed_aliases.json\n")
 }
 
 func runMCP() error {
@@ -85,7 +86,7 @@ func runBridgeSmoke() error {
 
 func runIngest(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("usage: sc-search ingest <init|status>")
+		return fmt.Errorf("usage: sc-search ingest <init|status|sync>")
 	}
 	root, err := bridge.FindRepoRoot("")
 	if err != nil {
@@ -122,6 +123,32 @@ func runIngest(args []string) error {
 		payload, _ := json.MarshalIndent(map[string]any{"ok": true, "db": path, "runs": runs}, "", "  ")
 		fmt.Println(string(payload))
 		return nil
+	case "sync":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: sc-search ingest sync <aliases>")
+		}
+		conn, err := ingest.Open(path)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		if err := ingest.InitDB(conn); err != nil {
+			return err
+		}
+		switch args[1] {
+		case "aliases":
+			n, err := ingest.SyncAliases(conn, root, "")
+			if err != nil {
+				return err
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"ok": true, "source": "aliases", "row_count": n, "db": path,
+			})
+			fmt.Println(string(payload))
+			return nil
+		default:
+			return fmt.Errorf("unknown sync source %q (Go: aliases only; use Python for uex/scmdb/…)", args[1])
+		}
 	default:
 		return fmt.Errorf("unknown ingest subcommand %q", args[0])
 	}

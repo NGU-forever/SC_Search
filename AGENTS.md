@@ -11,3 +11,14 @@
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
 - 库无字段不编造；Erkul 等交互站在 `leave_open` 时摘要后把页面留给用户继续改。
+
+### MCP 运行时（Go 双轨）
+
+优先使用 Go 二进制（查询/路由/worker/`sc_answer` 已原生）：
+
+```bash
+cd go && go build -o sc-search ./cmd/sc-search
+# Cursor MCP: command=<repo>/go/sc-search  args=["mcp"]
+```
+
+说明见 [`go/README.md`](go/README.md)。Ingest 完整 sync（uex/scmdb/…）暂时仍可用 `python -m sc_search.ingest`；Go 已支持 `sc-search ingest init|status|sync aliases`。
