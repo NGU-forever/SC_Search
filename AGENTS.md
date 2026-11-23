@@ -35,7 +35,7 @@
    ```
    失败时再逐步：`./go/sc-search ingest init` → `sync scmdb live` → `scw` → `wiki` → `aliases` → `localization`（有 Token 再 `sync uex`）。最后 `./go/sc-search ingest status`。
 6. **写入 MCP 配置**（绝对路径，勿留占位符）：
-   - **Cursor**：写/更新 [`.cursor/mcp.json`](.cursor/mcp.json)（可参考 [`.cursor/mcp.json.example`](.cursor/mcp.json.example)）：
+   - **Cursor**：写/更新 `.cursor/mcp.json`（模板 [`config/mcp.cursor.example.json`](config/mcp.cursor.example.json)；`.cursor/` 已 gitignore，勿提交本机路径）：
      ```json
      {
        "mcpServers": {

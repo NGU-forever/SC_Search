@@ -112,10 +112,11 @@ chmod +x scripts/sync_all.sh scripts/run_mcp.sh
 Cursor：
 
 ```bash
-cp .cursor/mcp.json.example .cursor/mcp.json
+mkdir -p .cursor
+cp config/mcp.cursor.example.json .cursor/mcp.json
 ```
 
-把绝对路径改成你的仓库路径后重载 MCP。
+把绝对路径改成你的仓库路径后重载 MCP（或对 Agent 说「初始化」自动写）。
 
 ### 5. 开始提问
 
