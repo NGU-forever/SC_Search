@@ -12,8 +12,9 @@ data/*.sqlite
 data/raw/
 .DS_Store
 
-# Cursor local MCP (agent「初始化」会写入；模板见 config/mcp.cursor.example.json)
+# Local MCP configs with machine absolute paths (templates: config/mcp.cursor.example.json)
 .cursor/
+.mcp.json
 
 # Go MCP binary (built by scripts/run_mcp.sh or `go build`)
 go/sc-search
