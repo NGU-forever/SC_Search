@@ -7,7 +7,7 @@
 硬约束摘要：
 
 - 事实优先本地 MCP **`sc-search`**；禁止先空搜 / 先开 Erkul 再查库。
-- 复杂题：定 `primary`+slots → `sc_route` → `sc_worker_run`；`replan_suggested` 改意图，`slot_retry_suggested` 改检索词；各最多再规划 1 次。
+- 复杂题：定 `primary`+slots → `sc_route` → `sc_worker_run`；`replan_suggested` 改意图，`slot_retry_suggested` 改检索词；各最多再规划 1 次。合法 primary 见 `sc_intents`。
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
 - 库无字段不编造；Erkul 等交互站在 `leave_open` 时摘要后把页面留给用户继续改。

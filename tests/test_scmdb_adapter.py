@@ -43,6 +43,33 @@ def test_scmdb_apply_fixture(tmp_path: Path) -> None:
         """
     ).fetchone()["value_num"]
     assert uec == 50000.0
+
+    cost = conn.execute(
+        "SELECT value_num FROM facts WHERE key = 'cost_uec'"
+    ).fetchone()["value_num"]
+    assert cost == 33000.0
+    cooldown = conn.execute(
+        "SELECT value_num FROM facts WHERE key = 'cooldown'"
+    ).fetchone()["value_num"]
+    assert cooldown == 45.0
+    lifetime = conn.execute(
+        "SELECT value_num FROM facts WHERE key = 'lifetime'"
+    ).fetchone()["value_num"]
+    assert lifetime == 4.0
+    site = conn.execute(
+        "SELECT value_text FROM facts WHERE key = 'site_pool'"
+    ).fetchone()["value_text"]
+    assert "RAB-ALPHA" in site
+    assert "Checkmate" in site
+
+    locs = conn.execute(
+        "SELECT COUNT(*) AS c FROM entities WHERE kind = 'location'"
+    ).fetchone()["c"]
+    assert locs == 3
+    rel_loc = conn.execute(
+        "SELECT COUNT(*) AS c FROM relations WHERE rel_type = 'mission_location'"
+    ).fetchone()["c"]
+    assert rel_loc == 3
     conn.close()
 
 

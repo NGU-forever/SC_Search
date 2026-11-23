@@ -250,7 +250,7 @@ def _make_null_handlers() -> dict[str, Any]:
         return json.dumps({"ok": True, "data": None, "meta": {}})
 
     tools = [
-        "sc_resolve_name", "sc_entity_facts", "sc_list_missions",
+        "sc_resolve_name", "sc_entity_facts", "sc_list_missions", "sc_locations",
         "sc_best_prices", "sc_terminal_prices", "sc_search_docs",
         "sc_data_freshness", "sc_answer", "sc_query_plan",
     ]

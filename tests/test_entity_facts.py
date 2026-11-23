@@ -30,7 +30,18 @@ def test_entity_facts_mission(tmp_path: Path) -> None:
     assert by_title is not None
     keys = {f["key"] for f in data["facts"]}
     assert "reward_uec" in keys
+    assert "cost_uec" in keys
+    assert "cooldown" in keys
+    assert "site_pool" in keys
     assert any(r["rel_type"] == "mission_reward_blueprint_pool" for r in data["relations"])
+    assert any(r["rel_type"] == "mission_location" for r in data["relations"])
+
+    compact = entity_facts(conn, "Foxwell_Test_Mission", detail="compact")
+    assert compact is not None
+    assert compact["detail"] == "compact"
+    compact_keys = {f["key"] for f in compact["facts"]}
+    assert "cost_uec" in compact_keys
+    assert "debug_name" not in compact_keys
     conn.close()
 
 

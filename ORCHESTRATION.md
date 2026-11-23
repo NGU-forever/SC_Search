@@ -56,7 +56,7 @@
 | `ship_stats` | ship | `sc_answer` → `sc_resolve_name` → `sc_entity_facts` | mcp_only |
 | `ship_buy` | ship | `sc_answer` → resolve → facts →（可选）`sc_search_docs`；购点外链确认后再开浏览器 | mcp_then_browser |
 | `mission_rep` | faction, rank, system | `sc_resolve_name`(势力) → `sc_list_missions` → `sc_entity_facts`；**不编造声望点数** | mcp_only |
-| `mission_money` | activity, system, faction | `sc_list_missions` → resolve →（可选）`sc_answer` | mcp_only |
+| `mission_money` | activity, system, faction | `sc_list_missions` → resolve → `sc_entity_facts` →（可选）`sc_answer`；站点池可用 `sc_locations` | mcp_only |
 | `blueprint` / `crafting` | item, blueprint | `sc_answer` → resolve（偏 blueprint）→ `sc_entity_facts`；矿点未收录则明说 | mcp_only |
 | `loadout` | ship | 静态：`sc_answer` / resolve / `sc_entity_facts`；要 DPS/配装结果再 Erkul | mcp_then_browser |
 | `mining` | ship, laser | 静态同上；确认后再开 mining guides | mcp_then_browser |
@@ -70,7 +70,9 @@
 | `patch_live` | — | `sc_data_freshness` 对照库版本；正文以官网为准 | browser_only |
 | `other` | — | `sc_answer` → resolve →（可选）`sc_query_plan`；勿空搜 | mcp_only |
 
-**白名单工具**：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_search_docs`、`sc_route`、`sc_worker_run`。
+**白名单工具**：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_locations`、`sc_search_docs`、`sc_intents`、`sc_route`、`sc_worker_run`。
+
+合法 `primary` 以 `sc_intents` 为准（与 `INTENT_TOOLS` 同步）。任务机制字段：`cost_uec`（buyIn）、`cooldown`、`lifetime`、`reputation_*`、`pyro_regions`、`site_pool`、`enemy_min/max`。价格行若 `meta.stale=true`，勿把 UEX 旧 `game_version` 当成当前 Live。
 
 **Router / Worker**：客户端 LLM 只出 `primary`+`slots`；DAG 由本地展开（`sc_route`）。Worker 可在 resolve 命中后自行加调 `sc_entity_facts`；`earn_meta`/`howto`/`bug_tip` 强工具全空时可加调 `sc_search_docs`/`sc_answer`（用整句 question）。
 

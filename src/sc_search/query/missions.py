@@ -81,6 +81,15 @@ def list_missions(
           e.game_version,
           fc.value_text AS contractor,
           fr.value_num AS reward_uec,
+          fcost.value_num AS cost_uec,
+          fcd.value_num AS cooldown,
+          flt.value_num AS lifetime,
+          frep.value_num AS reputation_min,
+          freprank.value_text AS reputation_rank,
+          fpr.value_text AS pyro_regions,
+          fsite.value_text AS site_pool,
+          femin.value_num AS enemy_min,
+          femax.value_num AS enemy_max,
           fmt.value_text AS mission_type,
           fs.value_text AS systems,
           COALESCE(
@@ -97,6 +106,15 @@ def list_missions(
         FROM entities e
         INNER JOIN facts fc ON fc.entity_id = e.id AND fc.key = 'contractor'
         LEFT JOIN facts fr ON fr.entity_id = e.id AND fr.key = 'reward_uec'
+        LEFT JOIN facts fcost ON fcost.entity_id = e.id AND fcost.key = 'cost_uec'
+        LEFT JOIN facts fcd ON fcd.entity_id = e.id AND fcd.key = 'cooldown'
+        LEFT JOIN facts flt ON flt.entity_id = e.id AND flt.key = 'lifetime'
+        LEFT JOIN facts frep ON frep.entity_id = e.id AND frep.key = 'reputation_min'
+        LEFT JOIN facts freprank ON freprank.entity_id = e.id AND freprank.key = 'reputation_rank'
+        LEFT JOIN facts fpr ON fpr.entity_id = e.id AND fpr.key = 'pyro_regions'
+        LEFT JOIN facts fsite ON fsite.entity_id = e.id AND fsite.key = 'site_pool'
+        LEFT JOIN facts femin ON femin.entity_id = e.id AND femin.key = 'enemy_min'
+        LEFT JOIN facts femax ON femax.entity_id = e.id AND femax.key = 'enemy_max'
         LEFT JOIN facts fmt ON fmt.entity_id = e.id AND fmt.key = 'mission_type'
         LEFT JOIN facts fs ON fs.entity_id = e.id AND fs.key = 'systems'
         WHERE e.kind = 'mission'

@@ -128,6 +128,94 @@ class ScmdbClient:
             raise
 
 
+def _enemy_ship_counts(ship_encounters: Any) -> tuple[float | None, float | None]:
+    """Pull totalMin/MaxShips from SCMDB shipEncounters.spawnConfig when present."""
+    if not isinstance(ship_encounters, dict):
+        return None, None
+    cfg = ship_encounters.get("spawnConfig")
+    if not isinstance(cfg, dict):
+        return None, None
+    tmin = cfg.get("totalMinShips")
+    tmax = cfg.get("totalMaxShips")
+    if tmin is None and tmax is None:
+        # Fall back to summing wave min/max
+        smin = smax = 0
+        found = False
+        for group in cfg.get("groups") or []:
+            if not isinstance(group, dict):
+                continue
+            for wave in group.get("waves") or []:
+                if not isinstance(wave, dict):
+                    continue
+                found = True
+                smin += int(wave.get("minShips") or 0)
+                smax += int(wave.get("maxShips") or 0)
+        if found:
+            return float(smin), float(smax)
+        return None, None
+    try:
+        return (
+            float(tmin) if tmin is not None else None,
+            float(tmax) if tmax is not None else None,
+        )
+    except (TypeError, ValueError):
+        return None, None
+
+
+def _mission_location_ids(contract: dict[str, Any]) -> list[str]:
+    """Unique location pool ids from locations + locationSets."""
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def add(raw: Any) -> None:
+        if raw is None:
+            return
+        key = str(raw)
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(key)
+
+    for lid in contract.get("locations") or []:
+        add(lid)
+    for lid in contract.get("destinations") or []:
+        add(lid)
+    for block in contract.get("locationSets") or []:
+        if not isinstance(block, dict):
+            continue
+        for lid in block.get("locations") or []:
+            add(lid)
+        for lid in block.get("destinations") or []:
+            add(lid)
+    return out
+
+
+def _mission_site_names(contract: dict[str, Any], location_pools: dict[str, Any]) -> list[str]:
+    """Prefer RAB/Cluster/Station-like sites for the site_pool fact (capped)."""
+    names: list[str] = []
+    seen: set[str] = set()
+    for lid in _mission_location_ids(contract):
+        loc = location_pools.get(lid)
+        if not isinstance(loc, dict):
+            continue
+        name = str(loc.get("name") or "").strip()
+        if not name or name.startswith("@") or name in seen:
+            continue
+        loc_type = str(loc.get("type") or "")
+        keep = (
+            name.startswith("RAB-")
+            or name.startswith("Cluster ")
+            or loc_type in {"Station", "Outpost", "LandingZone", "Destination"}
+        )
+        if not keep:
+            continue
+        seen.add(name)
+        names.append(name)
+        if len(names) >= 40:
+            break
+    return names
+
+
 def apply_scmdb_payload(
     conn: sqlite3.Connection,
     payload: dict[str, Any],
@@ -236,6 +324,47 @@ def apply_scmdb_payload(
                 )
                 count += 1
 
+    # Location hierarchy (no coordinates in SCMDB pools — name/type/system only).
+    location_ids: dict[str, int] = {}
+    location_pools = payload.get("locationPools") or {}
+    if isinstance(location_pools, dict):
+        for loc_key, loc in location_pools.items():
+            if not isinstance(loc, dict):
+                continue
+            name = str(loc.get("name") or loc_key).strip()
+            if not name or name.startswith("@"):
+                continue
+            loc_id = str(loc_key)
+            entity_id = upsert_entity(
+                conn,
+                kind="location",
+                canonical_name=name,
+                game_version=game_version,
+                uuid=f"scmdb-loc-{loc_id}",
+            )
+            upsert_alias(conn, entity_id, name, "en", "scmdb")
+            location_ids[loc_id] = entity_id
+
+            def loc_fact_text(key: str, value: Any) -> None:
+                if value is None or value == "":
+                    return
+                upsert_fact(
+                    conn,
+                    entity_id=entity_id,
+                    key=key,
+                    value_text=str(value),
+                    source="scmdb",
+                    game_version=game_version,
+                    ingest_run_id=run_id,
+                )
+
+            loc_fact_text("location_type", loc.get("type"))
+            loc_fact_text("system", loc.get("system"))
+            loc_fact_text("planet", loc.get("planet"))
+            loc_fact_text("moon", loc.get("moon"))
+            loc_fact_text("scmdb_location_id", loc_id)
+            count += 1
+
     contracts = payload.get("contracts") or []
     if isinstance(contracts, list):
         for contract in contracts:
@@ -290,6 +419,11 @@ def apply_scmdb_payload(
                 )
 
             fact_num("reward_uec", contract.get("rewardUEC"), "aUEC")
+            # SCMDB: buyIn = entry cost; personalCooldownTime / timeToComplete = refresh / window.
+            fact_num("cost_uec", contract.get("buyIn"), "aUEC")
+            fact_num("cooldown", contract.get("personalCooldownTime"))
+            fact_num("abandoned_cooldown", contract.get("abandonedCooldownTime"))
+            fact_num("lifetime", contract.get("timeToComplete"))
             fact_text("mission_type", contract.get("missionType") or contract.get("missionTypeKey"))
             fact_text("category", contract.get("category"))
             fact_text("contractor", contract.get("contractorName"))
@@ -300,6 +434,31 @@ def apply_scmdb_payload(
             if systems:
                 fact_text("systems", ",".join(str(s) for s in systems) if isinstance(systems, list) else str(systems))
 
+            min_standing = contract.get("minStanding")
+            if isinstance(min_standing, dict):
+                fact_text("reputation_rank", min_standing.get("name"))
+                fact_num("reputation_min", min_standing.get("minReputation"))
+            max_standing = contract.get("maxStanding")
+            if isinstance(max_standing, dict):
+                fact_text("reputation_rank_max", max_standing.get("name"))
+                fact_num("reputation_max", max_standing.get("minReputation"))
+
+            pyro_region = contract.get("pyroRegion")
+            if isinstance(pyro_region, list) and pyro_region:
+                fact_text("pyro_regions", ",".join(str(r) for r in pyro_region))
+            elif pyro_region:
+                fact_text("pyro_regions", str(pyro_region))
+
+            site_names = _mission_site_names(contract, location_pools if isinstance(location_pools, dict) else {})
+            if site_names:
+                fact_text("site_pool", json.dumps(site_names, ensure_ascii=False))
+
+            enemy_min, enemy_max = _enemy_ship_counts(contract.get("shipEncounters"))
+            if enemy_min is not None:
+                fact_num("enemy_min", enemy_min)
+            if enemy_max is not None:
+                fact_num("enemy_max", enemy_max)
+
             faction_guid = contract.get("factionGuid")
             if faction_guid and str(faction_guid) in faction_ids:
                 insert_relation(
@@ -307,6 +466,19 @@ def apply_scmdb_payload(
                     from_id=entity_id,
                     to_id=faction_ids[str(faction_guid)],
                     rel_type="mission_faction",
+                    source="scmdb",
+                    game_version=game_version,
+                )
+
+            for loc_key in _mission_location_ids(contract):
+                to_id = location_ids.get(str(loc_key))
+                if to_id is None:
+                    continue
+                insert_relation(
+                    conn,
+                    from_id=entity_id,
+                    to_id=to_id,
+                    rel_type="mission_location",
                     source="scmdb",
                     game_version=game_version,
                 )

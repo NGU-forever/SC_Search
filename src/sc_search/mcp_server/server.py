@@ -10,7 +10,9 @@ from sc_search.ingest.db import connect
 from sc_search.paths import get_db_path
 from sc_search.query.answer import answer_question
 from sc_search.query.entities import entity_facts
-from sc_search.query.freshness import data_freshness, live_game_version
+from sc_search.query.freshness import data_freshness, live_game_version, short_live_label
+from sc_search.query.intent_tools import INTENT_TOOLS, intents_catalog
+from sc_search.query.locations import list_locations
 from sc_search.query.prices import best_prices, terminal_prices
 from sc_search.query.plan import query_plan
 from sc_search.query.resolve import resolve_name
@@ -30,6 +32,16 @@ def _meta_from_rows(rows: list[dict]) -> dict[str, Any]:
         "game_version": first.get("game_version"),
         "synced_at": first.get("reported_at") or first.get("finished_at"),
     }
+
+
+def _with_freshness(conn: sqlite3.Connection, meta: dict[str, Any] | None) -> dict[str, Any]:
+    """Attach as_of (Live) and stale when row game_version disagrees with SCMDB Live."""
+    out = dict(meta or {})
+    live = live_game_version(conn)
+    out["as_of"] = live
+    row_ver = short_live_label(str(out.get("game_version") or "") or None)
+    out["stale"] = bool(row_ver and live and row_ver != live)
+    return out
 
 
 def _ok(data: Any, meta: dict[str, Any] | None = None) -> str:
@@ -90,7 +102,7 @@ def sc_best_prices(
             data = best_prices(conn, commodity, side=side, system=system, limit=limit)
             if not data:
                 return _no_match(f"no prices for commodity={commodity!r} side={side!r}")
-            return _ok(data, _meta_from_rows(data))
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
         finally:
             conn.close()
     except Exception as exc:
@@ -106,7 +118,7 @@ def sc_terminal_prices(terminal: str, side: str | None = None) -> str:
             data = terminal_prices(conn, terminal, side=side)
             if not data:
                 return _no_match(f"no prices for terminal={terminal!r}")
-            return _ok(data, _meta_from_rows(data))
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
         finally:
             conn.close()
     except Exception as exc:
@@ -120,7 +132,7 @@ def sc_data_freshness(source: str | None = None) -> str:
         conn = open_db()
         try:
             data = data_freshness(conn, source=source)
-            return _ok(data, _meta_from_rows(data))
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
         finally:
             conn.close()
     except Exception as exc:
@@ -128,15 +140,20 @@ def sc_data_freshness(source: str | None = None) -> str:
 
 
 @mcp.tool()
-def sc_entity_facts(name_or_id: str) -> str:
-    """Facts and relations for a mission, blueprint, ship, item, or faction from local DB."""
+def sc_entity_facts(name_or_id: str, detail: str = "full") -> str:
+    """Facts and relations for a mission, blueprint, ship, item, or faction from local DB.
+
+    detail=compact keeps high-value facts only (cheaper for LLM clients).
+    """
     try:
         conn = open_db()
         try:
-            data = entity_facts(conn, name_or_id)
+            data = entity_facts(conn, name_or_id, detail=detail)
             if data is None:
                 return _no_match(f"entity not found: {name_or_id!r}", data={})
-            meta = {"game_version": data["entity"].get("game_version")}
+            meta = _with_freshness(
+                conn, {"game_version": data["entity"].get("game_version")}
+            )
             return _ok(data, meta)
         finally:
             conn.close()
@@ -214,7 +231,39 @@ def sc_list_missions(
                     limit=3,
                 )
                 return _no_match(msg, near_misses=near or None)
-            return _ok(data, _meta_from_rows(data))
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
+        finally:
+            conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
+def sc_locations(
+    query: str | None = None,
+    system: str | None = None,
+    location_type: str | None = None,
+    limit: int = 20,
+) -> str:
+    """Search local SCMDB locations (name/type/system/planet/moon; no coordinates)."""
+    try:
+        conn = open_db()
+        try:
+            data = list_locations(
+                conn,
+                query=query,
+                system=system,
+                location_type=location_type,
+                limit=limit,
+            )
+            if not data:
+                return _no_match(
+                    "no locations matched"
+                    + (f" query={query!r}" if query else "")
+                    + (f" system={system!r}" if system else "")
+                    + (f" location_type={location_type!r}" if location_type else "")
+                )
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
         finally:
             conn.close()
     except Exception as exc:
@@ -230,9 +279,18 @@ def sc_search_docs(query: str, limit: int = 5) -> str:
             data = search_docs(conn, query, limit=limit)
             if not data:
                 return _no_match(f"no documents matched query={query!r}")
-            return _ok(data, _meta_from_rows(data))
+            return _ok(data, _with_freshness(conn, _meta_from_rows(data)))
         finally:
             conn.close()
+    except Exception as exc:
+        return _err(str(exc))
+
+
+@mcp.tool()
+def sc_intents() -> str:
+    """List valid Router primaries, slots, tools, and paths (machine-readable playbook)."""
+    try:
+        return _ok(intents_catalog())
     except Exception as exc:
         return _err(str(exc))
 
@@ -256,6 +314,7 @@ worker_handlers = {
     "sc_data_freshness": sc_data_freshness,
     "sc_entity_facts": sc_entity_facts,
     "sc_list_missions": sc_list_missions,
+    "sc_locations": sc_locations,
     "sc_search_docs": sc_search_docs,
 }
 
@@ -267,29 +326,44 @@ def sc_route(
     slots_json: str = "{}",
     replan_count: int = 0,
 ) -> str:
-    """Expand primary+slots into a parallel DAG plan (no DB fetch). Client LLM picks primary."""
+    """Expand primary+slots into a parallel DAG plan (no DB fetch).
+
+    ``primary`` should be one of sc_intents().primaries; unknown values fall back to ``other``.
+    """
     try:
         from sc_search.router.dag import expand_dag
 
         slots = _parse_slots(slots_json)
+        requested = (primary or "").strip()
         plan = expand_dag(
             question,
             primary,
             slots,
             replan_count=replan_count,
         )
-        return _ok(plan.to_dict())
+        body = plan.to_dict()
+        meta: dict[str, Any] = {
+            "primaries": list(INTENT_TOOLS.keys()),
+            "primary_requested": requested,
+            "primary_resolved": body.get("primary"),
+        }
+        if requested and requested not in INTENT_TOOLS:
+            meta["primary_fallback"] = True
+        return _ok(body, meta)
     except Exception as exc:
         return _err(str(exc))
 
 
 @mcp.tool()
 def sc_worker_run(plan_json: str) -> str:
-    """Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch."""
+    """Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.
+
+    ``plan_json`` is a JSON object string (MCP args are strings); pass the ``data`` from sc_route.
+    """
     try:
         from sc_search.worker.executor import run_plan
 
-        plan = json.loads(plan_json)
+        plan = json.loads(plan_json) if isinstance(plan_json, str) else plan_json
         if not isinstance(plan, dict):
             return _err("plan_json must be a JSON object")
         data = run_plan(plan, worker_handlers)
@@ -301,6 +375,7 @@ def sc_worker_run(plan_json: str) -> str:
 # Expose undecorated handlers for unit tests
 handlers = {
     **worker_handlers,
+    "sc_intents": sc_intents,
     "sc_route": sc_route,
     "sc_worker_run": sc_worker_run,
 }

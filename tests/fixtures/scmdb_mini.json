@@ -3,6 +3,11 @@
   "factions": {
     "faction-1": {"name": "Foxwell Enforcement", "nameKey": "@foxwell"}
   },
+  "locationPools": {
+    "loc-star": {"name": "Pyro", "type": "Star", "system": "Pyro", "planet": null, "moon": null},
+    "loc-rab": {"name": "RAB-ALPHA", "type": "Default", "system": "Pyro", "planet": null, "moon": null},
+    "loc-station": {"name": "Checkmate", "type": "Station", "system": "Pyro", "planet": null, "moon": null}
+  },
   "blueprintPools": {
     "pool-1": {
       "name": "BP_MISSIONREWARD_Test",
@@ -34,6 +39,17 @@
       "factionGuid": "faction-1",
       "illegal": false,
       "rewardUEC": 50000,
+      "buyIn": 33000,
+      "personalCooldownTime": 45,
+      "abandonedCooldownTime": 45,
+      "timeToComplete": 4,
+      "pyroRegion": ["A", "B", "C", "D"],
+      "minStanding": {"name": "Sr. Contractor", "minReputation": 5800},
+      "maxStanding": {"name": "Elite Contractor", "minReputation": 95250},
+      "locations": ["loc-star", "loc-rab", "loc-station"],
+      "shipEncounters": {
+        "spawnConfig": {"totalMinShips": 1, "totalMaxShips": 1, "groups": []}
+      },
       "availableSystems": ["Pyro"],
       "blueprintRewards": [
         {

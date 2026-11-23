@@ -133,3 +133,25 @@ def test_mcp_best_prices_no_match_is_ok(tmp_path: Path, monkeypatch: pytest.Monk
     assert raw["ok"] is True
     assert raw["data"] == []
     assert raw["meta"].get("why") == "no_match"
+
+
+def test_mcp_best_prices_marks_stale_when_uex_version_old(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "t.sqlite"
+    _seed(db)
+    # Mark SCMDB live as 4.10.3 while UEX rows stay on whatever _seed wrote.
+    conn = connect(db)
+    init_db(conn)
+    run_id = start_run(conn, "scmdb", "4.10.3-live.test")
+    finish_run(conn, run_id, status="ok", row_count=1, game_version="4.10.3-live.test")
+    # Force price row version to an older patch
+    conn.execute("UPDATE prices SET game_version = '3.24.2'")
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("SC_SEARCH_DB", str(db))
+
+    raw = json.loads(mcp_server.handlers["sc_best_prices"]("黄金", side="sell"))
+    assert raw["ok"] is True
+    assert raw["meta"].get("stale") is True
+    assert raw["meta"].get("as_of") == "4.10.3"

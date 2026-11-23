@@ -7,7 +7,7 @@ Client LLM picks ``primary`` + slots; ``sc_route`` expands this into a DAG
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 # MCP tool names exposed by sc_search.mcp_server (keep in sync with server.py).
 MCP_TOOLS = frozenset(
@@ -20,11 +20,35 @@ MCP_TOOLS = frozenset(
         "sc_data_freshness",
         "sc_entity_facts",
         "sc_list_missions",
+        "sc_locations",
         "sc_search_docs",
+        "sc_intents",
         "sc_route",
         "sc_worker_run",
     }
 )
+
+PrimaryIntent = Literal[
+    "trade",
+    "ship_stats",
+    "ship_buy",
+    "mission_rep",
+    "mission_money",
+    "blueprint",
+    "crafting",
+    "loadout",
+    "mining",
+    "bug_tip",
+    "client_help",
+    "howto",
+    "earn_meta",
+    "pledge_meta",
+    "event_guide",
+    "lore_docs",
+    "patch_live",
+    "trade_route",
+    "other",
+]
 
 # Agent primary intent → retrieve playbook.
 # tools: preferred call order (skip steps already satisfied by prior evidence).
@@ -61,10 +85,10 @@ INTENT_TOOLS: dict[str, dict[str, Any]] = {
     },
     "mission_money": {
         "slots": ["activity", "system", "faction"],
-        "tools": ["sc_list_missions", "sc_resolve_name", "sc_answer"],
+        "tools": ["sc_list_missions", "sc_resolve_name", "sc_entity_facts", "sc_answer"],
         "path": "mcp_only",
         "plan_intent": "mission_list",
-        "notes": "刷钱任务列表；有势力则带 faction；报酬只引用库内字段",
+        "notes": "刷钱任务列表；机制字段看 cost_uec/cooldown/lifetime/site_pool；站点用 sc_locations",
     },
     "blueprint": {
         "slots": ["item", "blueprint"],
@@ -167,9 +191,29 @@ INTENT_TOOLS: dict[str, dict[str, Any]] = {
 }
 
 
+PRIMARY_INTENTS: tuple[str, ...] = tuple(INTENT_TOOLS.keys())
+
+
 def playbook_for(intent: str) -> dict[str, Any] | None:
     key = (intent or "").strip()
     return INTENT_TOOLS.get(key)
+
+
+def intents_catalog() -> dict[str, Any]:
+    """Machine-readable playbook for clients (replaces markdown-only discovery)."""
+    return {
+        "primaries": list(PRIMARY_INTENTS),
+        "playbooks": {
+            key: {
+                "slots": row.get("slots") or [],
+                "tools": row.get("tools") or [],
+                "path": row.get("path"),
+                "notes": row.get("notes") or "",
+            }
+            for key, row in INTENT_TOOLS.items()
+        },
+        "tools": sorted(MCP_TOOLS),
+    }
 
 
 def validate_intent_tools() -> list[str]:

@@ -6,7 +6,43 @@ import sqlite3
 from sc_search.query.resolve import resolve_name
 
 
-def entity_facts(conn: sqlite3.Connection, name_or_id: str) -> dict | None:
+_COMPACT_FACT_KEYS = frozenset(
+    {
+        "reward_uec",
+        "cost_uec",
+        "cooldown",
+        "abandoned_cooldown",
+        "lifetime",
+        "reputation_min",
+        "reputation_rank",
+        "reputation_max",
+        "reputation_rank_max",
+        "pyro_regions",
+        "site_pool",
+        "enemy_min",
+        "enemy_max",
+        "mission_type",
+        "category",
+        "contractor",
+        "systems",
+        "illegal",
+        "cargo_capacity",
+        "manufacturer",
+        "size",
+        "location_type",
+        "system",
+        "planet",
+        "moon",
+    }
+)
+
+
+def entity_facts(
+    conn: sqlite3.Connection,
+    name_or_id: str,
+    *,
+    detail: str = "full",
+) -> dict | None:
     text = name_or_id.strip()
     if not text:
         return None
@@ -92,9 +128,16 @@ def entity_facts(conn: sqlite3.Connection, name_or_id: str) -> dict | None:
                 item["meta"] = meta
         relations_out.append(item)
 
+    mode = (detail or "full").strip().lower()
+    if mode == "compact":
+        facts = [f for f in facts if f.get("key") in _COMPACT_FACT_KEYS] or facts[:20]
+        aliases = aliases[:8]
+        relations_out = relations_out[:20]
+
     return {
         "entity": entity,
         "aliases": aliases,
         "facts": facts,
         "relations": relations_out,
+        "detail": mode if mode in {"compact", "full"} else "full",
     }
