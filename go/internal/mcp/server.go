@@ -14,13 +14,14 @@ import (
 	"github.com/frankxiong/sc-search/internal/bridge"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/router"
+	"github.com/frankxiong/sc-search/internal/worker"
 )
 
 // NewServer builds the stdio MCP server with all tool names registered.
 func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "sc-search",
-		Version: "0.4.0-go-partial-native",
+		Version: "0.5.0-go-partial-native",
 	}, nil)
 
 	add := func(name, desc string, fn mcp.ToolHandlerFor[map[string]any, string]) {
@@ -274,7 +275,23 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			return textResult(okJSON(body, meta), false)
 		})
 
-	add("sc_worker_run", "Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.", bridgeHandler("sc_worker_run"))
+	add("sc_worker_run", "Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			var plan map[string]any
+			switch v := input["plan_json"].(type) {
+			case string:
+				if err := json.Unmarshal([]byte(v), &plan); err != nil {
+					return textResult(errJSON("plan_json must be a JSON object"), true)
+				}
+			case map[string]any:
+				plan = v
+			default:
+				return textResult(errJSON("plan_json must be a JSON object"), true)
+			}
+			invoker := worker.NewNativeInvoker(db, caller)
+			data := worker.RunPlan(ctx, plan, invoker)
+			return textResult(okJSON(data, map[string]any{}), false)
+		})
 
 	return server
 }
