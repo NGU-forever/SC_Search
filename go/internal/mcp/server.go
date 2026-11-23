@@ -196,9 +196,27 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			return textResult(okJSON(data, withFreshness(data)), false)
 		})
 
+	add("sc_list_missions", "List missions filtered by faction/system/type from the local DB.",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			if db == nil {
+				return bridgeHandler("sc_list_missions")(ctx, req, input)
+			}
+			faction, _ := input["faction"].(string)
+			rankKeyword, _ := input["rank_keyword"].(string)
+			system, _ := input["system"].(string)
+			limit := asInt(input["limit"], 10)
+			data, err := query.ListMissions(db, faction, rankKeyword, system, limit)
+			if err != nil {
+				return textResult(errJSON(err.Error()), true)
+			}
+			if len(data) == 0 {
+				return textResult(noMatchJSON("no missions matched", nil), false)
+			}
+			return textResult(okJSON(data, withFreshness(data)), false)
+		})
+
 	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).", bridgeHandler("sc_query_plan"))
 	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).", bridgeHandler("sc_answer"))
-	add("sc_list_missions", "List missions filtered by faction/system/type from the local DB.", bridgeHandler("sc_list_missions"))
 	add("sc_intents", "List valid Router primaries, slots, tools, and paths (machine-readable playbook).", bridgeHandler("sc_intents"))
 	add("sc_route", "Expand primary+slots into a parallel DAG plan (no DB fetch).", bridgeHandler("sc_route"))
 	add("sc_worker_run", "Execute a sc_route DAG in parallel waves; may augment; signals replan on evidence mismatch.", bridgeHandler("sc_worker_run"))
