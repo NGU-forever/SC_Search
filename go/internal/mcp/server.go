@@ -21,7 +21,7 @@ import (
 func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "sc-search",
-		Version: "0.6.0-go-partial-native",
+		Version: "0.7.0-go-partial-native",
 	}, nil)
 
 	add := func(name, desc string, fn mcp.ToolHandlerFor[map[string]any, string]) {
@@ -233,7 +233,26 @@ func NewServer(caller *bridge.Caller, db *sql.DB) *mcp.Server {
 			return textResult(okJSON(data, map[string]any{}), false)
 		})
 
-	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).", bridgeHandler("sc_answer"))
+	add("sc_answer", "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape).",
+		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
+			if db == nil {
+				return bridgeHandler("sc_answer")(ctx, req, input)
+			}
+			question, _ := input["question"].(string)
+			detail, _ := input["detail_level"].(string)
+			if detail == "" {
+				detail = "brief"
+			}
+			hint, _ := input["hint_entity"].(string)
+			data, err := query.AnswerQuestion(db, question, detail, hint)
+			if err != nil {
+				if err == query.ErrUseBridge {
+					return bridgeHandler("sc_answer")(ctx, req, input)
+				}
+				return textResult(errJSON(err.Error()), true)
+			}
+			return textResult(okJSON(data, map[string]any{}), false)
+		})
 
 	add("sc_intents", "List valid Router primaries, slots, tools, and paths (machine-readable playbook).",
 		func(ctx context.Context, req *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, string, error) {
