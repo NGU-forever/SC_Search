@@ -42,3 +42,6 @@
 | **Roberts Space Industries (RSI)** | `robertsspaceindustries.com` | 官方新闻、Patch Notes（补丁说明）、Comm-Link、Spectrum 论坛 |
 | **SC Focus** | `scfocus.org` | 飞船对比、版本改动摘要与入门指南 |
 | **CStone Item Finder** | `finder.cstone.space` | 游戏内物品/装备/武器商店分布速查 |
+| **Subliminal.gg** | `subliminal.gg/missions/<debug_name>` | 合约库（费用/冷却/reputation 门槛/接单区域），按 debug_name 可直接查单 | 2026-11-23 追踪 Bit Zeros 33k 单时发现 |
+| **Wolf's Guide to the 'Verse (WGV)** | `scc.pmad.net/en/Contracts/Details/<uuid>` | 合约详情镜像（Fee / Availability / 声望区间 / 敌方编制与货量） | 2026-11-23 同上 |
+| **Stanton Beacon** | `stanton-beacon.com/en/commodities/<c>` | 大宗商品买卖价 + 站点需求/库存，带更新时间 | 2026-11-23 核对 Rat's Nest 金价 29,000 |
