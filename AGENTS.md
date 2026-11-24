@@ -46,7 +46,7 @@
 
 ### B. 源码开发树（完整路径）
 
-1. **检查 Go**：`go version`；若无 Go，优先引导去 [GitHub Releases](https://github.com/NGU-forever/SC_Search/releases) 下对应平台 zip；仅开发才需安装 Go 1.22+。
+1. **检查 Go**：`go version`；若无 Go，优先引导去 [GitHub Releases](https://github.com/NGU-forever/archangel-mcp/releases) 下对应平台 zip；仅开发才需安装 Go 1.22+。
 2. **构建**：
    ```bash
    cd "$ROOT/go" && go build -o sc-search ./cmd/sc-search

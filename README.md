@@ -10,7 +10,7 @@
 
 ### 1. 下载对应系统的包
 
-打开 [Releases](https://github.com/NGU-forever/SC_Search/releases)，按电脑选择 zip：
+打开 [Releases](https://github.com/NGU-forever/archangel-mcp/releases)，按电脑选择 zip：
 
 | 你的系统 | 下载文件名大致为 |
 | :--- | :--- |
