@@ -72,7 +72,7 @@
 
 **白名单工具**：`sc_answer`、`sc_query_plan`、`sc_resolve_name`、`sc_best_prices`、`sc_terminal_prices`、`sc_data_freshness`、`sc_entity_facts`、`sc_list_missions`、`sc_locations`、`sc_search_docs`、`sc_intents`、`sc_route`、`sc_worker_run`。
 
-合法 `primary` 以 `sc_intents` 为准（与 `INTENT_TOOLS` 同步）。任务机制字段：`cost_uec`（buyIn）、`cooldown`、`lifetime`、`reputation_*`、`pyro_regions`、`site_pool`、`enemy_min/max`。`sc_list_missions` 默认 limit=50，看 `meta.total`/`truncated`。`sc_entity_facts` 默认 `detail=compact`。价格或 worker 顶层 `meta.stale=true` 时，勿把 UEX 旧 `game_version` 当成当前 Live；howto 空 docs 时的 augment `sc_answer`（`evidence_weight=0`）不取消 `slot_retry`。
+合法 `primary` 以 `sc_intents` 为准（与 `INTENT_TOOLS` 同步）。任务机制字段：`cost_uec`（buyIn）、`cooldown`（unit=`min`）、`lifetime`（unit=`hr`）、`reputation_*`、`pyro_regions`、`site_pool` / `site_pool_by_region`、`region_tag`/`difficulty_band`、`enemy_min/max`。`sc_list_missions` 默认 limit=50，看 `meta.total`/`truncated`。`sc_entity_facts` 默认 `detail=compact`。`sc_answer` 对手续费/冷却/站点池等复杂题会返回 `route_required`+`suggested_primary`，应改走 `sc_route`→`sc_worker_run`。价格或 worker 顶层 `meta.stale=true`（看 `stale_sources`）时，勿把 UEX 旧 `game_version` 当成当前 Live；`sc_data_freshness` 按源标注 `stale`（aliases 等非版本源不参与对比）；howto 空 docs 时的 augment `sc_answer`（`evidence_weight=0`）不取消 `slot_retry`。
 
 **Router / Worker**：客户端 LLM 只出 `primary`+`slots`；DAG 由本地展开（`sc_route`）。Worker 可在 resolve 命中后自行加调 `sc_entity_facts`；`earn_meta`/`howto`/`bug_tip` 强工具全空时可加调 `sc_search_docs`/`sc_answer`（用整句 question）。
 

@@ -244,8 +244,10 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 		"stale":         false,
 		"sources":       []any{},
 		"game_versions": []any{},
+		"stale_sources": []any{},
 	}
 	versions := map[string]struct{}{}
+	staleSeen := map[string]struct{}{}
 	stale := false
 	var asOf any
 	for _, r := range callResults {
@@ -253,8 +255,20 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 		if meta == nil {
 			continue
 		}
+		tool, _ := r["tool"].(string)
 		if meta["stale"] == true {
 			stale = true
+			label := tool
+			if src := strAny(meta["source"]); src != "" {
+				label = src
+			}
+			if label == "" {
+				label = "unknown"
+			}
+			if _, seen := staleSeen[label]; !seen {
+				staleSeen[label] = struct{}{}
+				out["stale_sources"] = append(out["stale_sources"].([]any), label)
+			}
 		}
 		if asOf == nil {
 			if v, ok := meta["as_of"]; ok && v != nil && v != "" {
@@ -268,7 +282,7 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 				out["game_versions"] = append(out["game_versions"].([]any), gv)
 			}
 		}
-		if tool, ok := r["tool"].(string); ok && tool != "" {
+		if tool != "" {
 			out["sources"] = append(out["sources"].([]any), tool)
 		}
 	}

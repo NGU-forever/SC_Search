@@ -56,4 +56,8 @@ func TestAggregateCallMetaStale(t *testing.T) {
 	if meta["as_of"] != "4.10.3" {
 		t.Fatalf("as_of=%v", meta["as_of"])
 	}
+	staleSources, _ := meta["stale_sources"].([]any)
+	if len(staleSources) != 1 || staleSources[0] != "sc_best_prices" {
+		t.Fatalf("stale_sources=%#v", meta["stale_sources"])
+	}
 }

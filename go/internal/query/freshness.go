@@ -21,6 +21,12 @@ func ShortLiveLabel(gameVersion string) string {
 	return text
 }
 
+// IsComparableGameVersion is true for semver-like Live labels (e.g. 4.10.3 / 3.24.2),
+// false for non-game ingest markers (aliases, localization, wiki-live, …).
+func IsComparableGameVersion(gameVersion string) bool {
+	return livePrefix.MatchString(strings.TrimSpace(gameVersion))
+}
+
 func LiveGameVersion(db *sql.DB) (string, error) {
 	rows, err := DataFreshness(db, "scmdb")
 	if err != nil {
@@ -69,6 +75,37 @@ func DataFreshness(db *sql.DB, source string) ([]map[string]any, error) {
 	return scanMaps(rows)
 }
 
+// AnnotateFreshnessRows adds per-source as_of / stale flags (only comparable game versions).
+func AnnotateFreshnessRows(db *sql.DB, rows []map[string]any) (annotated []map[string]any, meta map[string]any) {
+	live, _ := LiveGameVersion(db)
+	staleSources := []string{}
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		cp := map[string]any{}
+		for k, v := range row {
+			cp[k] = v
+		}
+		gv := ShortLiveLabel(str(cp["game_version"]))
+		comparable := IsComparableGameVersion(gv)
+		stale := comparable && live != "" && gv != live
+		cp["as_of"] = live
+		cp["stale"] = stale
+		cp["version_comparable"] = comparable
+		if stale {
+			if src := str(cp["source"]); src != "" {
+				staleSources = append(staleSources, src)
+			}
+		}
+		out = append(out, cp)
+	}
+	meta = map[string]any{
+		"as_of":         live,
+		"stale_any":     len(staleSources) > 0,
+		"stale_sources": staleSources,
+	}
+	return out, meta
+}
+
 func str(v any) string {
 	if v == nil {
 		return ""
@@ -96,10 +133,14 @@ func MetaFromRows(rows []map[string]any) map[string]any {
 	} else if v, ok := first["finished_at"]; ok && v != nil {
 		meta["synced_at"] = v
 	}
+	if src, ok := first["source"]; ok && src != nil && str(src) != "" {
+		meta["source"] = src
+	}
 	return meta
 }
 
 // AttachFreshness sets as_of (Live) and stale when row game_version disagrees with SCMDB Live.
+// Non-comparable versions (aliases / localization markers) never set stale=true.
 func AttachFreshness(db *sql.DB, meta map[string]any) map[string]any {
 	out := map[string]any{}
 	for k, v := range meta {
@@ -108,6 +149,12 @@ func AttachFreshness(db *sql.DB, meta map[string]any) map[string]any {
 	live, _ := LiveGameVersion(db)
 	out["as_of"] = live
 	rowVer := ShortLiveLabel(str(out["game_version"]))
+	if !IsComparableGameVersion(rowVer) {
+		out["stale"] = false
+		out["version_comparable"] = false
+		return out
+	}
+	out["version_comparable"] = true
 	out["stale"] = rowVer != "" && live != "" && rowVer != live
 	return out
 }

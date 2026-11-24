@@ -72,7 +72,7 @@
     ],
     "path": "mcp_only",
     "plan_intent": "mission_list",
-    "notes": "刷钱任务列表；机制字段看 cost_uec/cooldown/lifetime/site_pool；站点用 sc_locations"
+    "notes": "刷钱任务列表；机制字段看 cost_uec/cooldown(min)/lifetime(hr)/site_pool_by_region；同名看 region_tag/difficulty_band"
   },
   "blueprint": {
     "slots": [

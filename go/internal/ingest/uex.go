@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +19,38 @@ const (
 	uexUserAgent   = "SC_Search-ingest/0.1"
 	uexSource      = "uex"
 )
+
+var uexParenSystemRE = regexp.MustCompile(`(?i)\((stanton|pyro|nyx|terra)\)`)
+
+// Lightweight terminal→system heuristic (mirrors query.InferSystemFromTerminalName; keep ingest free of query import).
+func inferSystemFromTerminalName(terminalName string) string {
+	name := strings.ToLower(strings.TrimSpace(terminalName))
+	if name == "" {
+		return ""
+	}
+	if m := uexParenSystemRE.FindStringSubmatch(name); len(m) == 2 {
+		return strings.ToLower(m[1])
+	}
+	pois := []struct {
+		system string
+		tokens []string
+	}{
+		{"stanton", []string{"area 18", "lorville", "new babbage", "orison", "grim hex", "everus", "hur-l", "cru-l", "arc-l", "mic-l", "hurston", "arccorp", "microtech", "crusader"}},
+		{"pyro", []string{"checkmate", "ruin station", "orbituary", "bloom", "terminus", "gaslight", "patch city", "rat's nest", "rab-", "starlight"}},
+		{"nyx", []string{"nyx gateway"}},
+	}
+	for _, p := range pois {
+		if strings.Contains(name, p.system) {
+			return p.system
+		}
+		for _, tok := range p.tokens {
+			if strings.Contains(name, tok) {
+				return p.system
+			}
+		}
+	}
+	return ""
+}
 
 // UexPayload is the offline/test input for ApplyUex.
 type UexPayload struct {
@@ -151,6 +184,16 @@ func applyUexPayload(conn *sql.DB, runID int64, gameVersion string, terminals, c
 		terminalIDs[uexID] = entityID
 		if err := UpsertAlias(conn, entityID, name, "en", uexSource); err != nil {
 			return count, err
+		}
+		sys := firstNonEmpty(
+			strAny(t["star_system_name"]),
+			strAny(t["system_name"]),
+			strAny(t["star_system"]),
+			inferSystemFromTerminalName(name),
+		)
+		if sys != "" {
+			run := runID
+			_ = UpsertFact(conn, entityID, "system", uexSource, gameVersion, &run, sys, nil, "")
 		}
 		count++
 	}

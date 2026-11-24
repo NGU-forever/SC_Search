@@ -11,10 +11,11 @@ import (
 var compactFactKeys = map[string]struct{}{
 	"reward_uec": {}, "cost_uec": {}, "cooldown": {}, "abandoned_cooldown": {},
 	"lifetime": {}, "reputation_min": {}, "reputation_rank": {}, "reputation_max": {},
-	"reputation_rank_max": {}, "pyro_regions": {}, "site_pool": {}, "enemy_min": {},
-	"enemy_max": {}, "mission_type": {}, "category": {}, "contractor": {}, "systems": {},
+	"reputation_rank_max": {}, "pyro_regions": {}, "site_pool": {}, "site_pool_by_region": {},
+	"enemy_min": {}, "enemy_max": {}, "mission_type": {}, "category": {}, "contractor": {}, "systems": {},
 	"illegal": {}, "cargo_capacity": {}, "manufacturer": {}, "size": {},
 	"location_type": {}, "system": {}, "planet": {}, "moon": {},
+	"cooldown_unit": {}, "lifetime_unit": {}, "region_tag": {}, "difficulty_band": {}, "debug_name": {},
 }
 
 var entityPriority = map[string]int{

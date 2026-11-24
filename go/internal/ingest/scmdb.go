@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -97,10 +98,18 @@ func missionLocationIDs(contract map[string]any) []string {
 	return out
 }
 
-func missionSiteNames(contract map[string]any, locationPools map[string]any) []string {
+func keepMissionSiteName(name, locType string) bool {
+	return strings.HasPrefix(name, "RAB-") || strings.HasPrefix(name, "Cluster ") ||
+		locType == "Station" || locType == "Outpost" || locType == "LandingZone" || locType == "Destination"
+}
+
+func siteNamesFromLocationIDs(ids []string, locationPools map[string]any, limit int) []string {
+	if limit <= 0 {
+		limit = 25
+	}
 	var names []string
 	seen := map[string]struct{}{}
-	for _, lid := range missionLocationIDs(contract) {
+	for _, lid := range ids {
 		loc, _ := locationPools[lid].(map[string]any)
 		if loc == nil {
 			continue
@@ -112,19 +121,81 @@ func missionSiteNames(contract map[string]any, locationPools map[string]any) []s
 		if _, ok := seen[name]; ok {
 			continue
 		}
-		locType := strAny(loc["type"])
-		keep := strings.HasPrefix(name, "RAB-") || strings.HasPrefix(name, "Cluster ") ||
-			locType == "Station" || locType == "Outpost" || locType == "LandingZone" || locType == "Destination"
-		if !keep {
+		if !keepMissionSiteName(name, strAny(loc["type"])) {
 			continue
 		}
 		seen[name] = struct{}{}
 		names = append(names, name)
-		if len(names) >= 40 {
+		if len(names) >= limit {
 			break
 		}
 	}
 	return names
+}
+
+func missionSiteNames(contract map[string]any, locationPools map[string]any) []string {
+	return siteNamesFromLocationIDs(missionLocationIDs(contract), locationPools, 40)
+}
+
+// missionSitePoolByRegion zips pyroRegion[i] with locationSets[i] when lengths match.
+func missionSitePoolByRegion(contract map[string]any, locationPools map[string]any) map[string][]string {
+	var regions []string
+	if pyro := contract["pyroRegion"]; pyro != nil {
+		for _, r := range asAnySlice(pyro) {
+			regions = append(regions, fmt.Sprint(r))
+		}
+	}
+	sets := asAnySlice(contract["locationSets"])
+	out := map[string][]string{}
+	if len(regions) > 0 && len(sets) == len(regions) {
+		for i, region := range regions {
+			block, _ := sets[i].(map[string]any)
+			if block == nil {
+				continue
+			}
+			var ids []string
+			seen := map[string]struct{}{}
+			add := func(raw any) {
+				if raw == nil {
+					return
+				}
+				key := fmt.Sprint(raw)
+				if _, ok := seen[key]; ok {
+					return
+				}
+				seen[key] = struct{}{}
+				ids = append(ids, key)
+			}
+			for _, lid := range asAnySlice(block["locations"]) {
+				add(lid)
+			}
+			for _, lid := range asAnySlice(block["destinations"]) {
+				add(lid)
+			}
+			names := siteNamesFromLocationIDs(ids, locationPools, 25)
+			if len(names) > 0 {
+				out[region] = names
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	if flat := missionSiteNames(contract, locationPools); len(flat) > 0 {
+		out["*"] = flat
+	}
+	return out
+}
+
+var missionDebugBandRE = regexp.MustCompile(`(?i)_Region([A-Z])_(E|M|H)_`)
+
+func missionDisambiguationTags(debugName, canonical string) (regionTag, difficultyBand string) {
+	for _, s := range []string{debugName, canonical} {
+		if m := missionDebugBandRE.FindStringSubmatch(s); len(m) == 3 {
+			return "Region" + strings.ToUpper(m[1]), strings.ToUpper(m[2])
+		}
+	}
+	return "", ""
 }
 
 func asAnySlice(v any) []any {
@@ -272,13 +343,20 @@ func ApplyScmdbPayload(conn *sql.DB, payload map[string]any, runID int64, gameVe
 		}
 		factNum("reward_uec", contract["rewardUEC"], "aUEC")
 		factNum("cost_uec", contract["buyIn"], "aUEC")
-		factNum("cooldown", contract["personalCooldownTime"], "")
-		factNum("abandoned_cooldown", contract["abandonedCooldownTime"], "")
-		factNum("lifetime", contract["timeToComplete"], "")
+		// SCMDB: personalCooldownTime is minutes; timeToComplete is hours.
+		factNum("cooldown", contract["personalCooldownTime"], "min")
+		factNum("abandoned_cooldown", contract["abandonedCooldownTime"], "min")
+		factNum("lifetime", contract["timeToComplete"], "hr")
+		factText("cooldown_unit", "min")
+		factText("lifetime_unit", "hr")
 		factText("mission_type", firstNonEmpty(strAny(contract["missionType"]), strAny(contract["missionTypeKey"])))
 		factText("category", contract["category"])
 		factText("contractor", contract["contractorName"])
 		factText("debug_name", contract["debugName"])
+		if regionTag, band := missionDisambiguationTags(debugName, canonical); regionTag != "" {
+			factText("region_tag", regionTag)
+			factText("difficulty_band", band)
+		}
 		if contract["illegal"] != nil {
 			if b, ok := contract["illegal"].(bool); ok && b {
 				factText("illegal", "1")
@@ -322,9 +400,38 @@ func ApplyScmdbPayload(conn *sql.DB, payload map[string]any, runID int64, gameVe
 				factText("pyro_regions", fmt.Sprint(pyro))
 			}
 		}
-		if sites := missionSiteNames(contract, locationPools); len(sites) > 0 {
-			raw, _ := json.Marshal(sites)
-			factText("site_pool", string(raw))
+		byRegion := missionSitePoolByRegion(contract, locationPools)
+		if len(byRegion) > 0 {
+			raw, _ := json.Marshal(byRegion)
+			factText("site_pool_by_region", string(raw))
+			// Flat pool for backward-compatible list/search consumers.
+			flatSeen := map[string]struct{}{}
+			var flat []string
+			for _, region := range []string{"A", "B", "C", "D", "*"} {
+				for _, n := range byRegion[region] {
+					if _, ok := flatSeen[n]; ok {
+						continue
+					}
+					flatSeen[n] = struct{}{}
+					flat = append(flat, n)
+				}
+			}
+			for region, names := range byRegion {
+				if region == "A" || region == "B" || region == "C" || region == "D" || region == "*" {
+					continue
+				}
+				for _, n := range names {
+					if _, ok := flatSeen[n]; ok {
+						continue
+					}
+					flatSeen[n] = struct{}{}
+					flat = append(flat, n)
+				}
+			}
+			if len(flat) > 0 {
+				rawFlat, _ := json.Marshal(flat)
+				factText("site_pool", string(rawFlat))
+			}
 		}
 		emin, emax := enemyShipCounts(contract["shipEncounters"])
 		if emin != nil {

@@ -46,7 +46,9 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv(fmt.Sprintf("no prices for commodity=%q side=%q", commodity, side), []any{}), true
 		}
-		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
+		meta := query.AttachFreshness(db, query.MetaFromRows(data))
+		meta["source"] = "uex"
+		return okEnv(data, meta), true
 	case "sc_terminal_prices":
 		terminal, _ := args["terminal"].(string)
 		side, _ := args["side"].(string)
@@ -57,14 +59,17 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv(fmt.Sprintf("no prices for terminal=%q", terminal), []any{}), true
 		}
-		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
+		meta := query.AttachFreshness(db, query.MetaFromRows(data))
+		meta["source"] = "uex"
+		return okEnv(data, meta), true
 	case "sc_data_freshness":
 		source, _ := args["source"].(string)
 		data, err := query.DataFreshness(db, source)
 		if err != nil {
 			return errEnv(err), true
 		}
-		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
+		annotated, meta := query.AnnotateFreshnessRows(db, data)
+		return okEnv(annotated, meta), true
 	case "sc_entity_facts":
 		name, _ := args["name_or_id"].(string)
 		detail, _ := args["detail"].(string)

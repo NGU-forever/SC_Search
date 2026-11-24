@@ -3,6 +3,7 @@ package query
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([]map[string]any, error) {
@@ -25,6 +26,19 @@ func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([
 	if side == "sell" {
 		order = "DESC"
 	}
+	sys := strings.TrimSpace(system)
+	// When filtering by system, pull a wider pool then match POI/parenthetical names in Go
+	// (UEX terminals often omit "Stanton"/"Pyro" in the display name).
+	fetchLimit := limit
+	if sys != "" {
+		fetchLimit = limit * 40
+		if fetchLimit < 80 {
+			fetchLimit = 80
+		}
+		if fetchLimit > 500 {
+			fetchLimit = 500
+		}
+	}
 	baseSQL := `
 		SELECT
 		  c.canonical_name AS commodity,
@@ -42,14 +56,8 @@ func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([
 		  AND p.side = ?
 	`
 	for _, entity := range candidates {
-		sqlText := baseSQL
-		args := []any{entity["id"], side}
-		if system != "" {
-			sqlText += " AND t.canonical_name LIKE ? COLLATE NOCASE"
-			args = append(args, "%"+system+"%")
-		}
-		sqlText += fmt.Sprintf(" ORDER BY p.price %s LIMIT ?", order)
-		args = append(args, limit)
+		sqlText := baseSQL + fmt.Sprintf(" ORDER BY p.price %s LIMIT ?", order)
+		args := []any{entity["id"], side, fetchLimit}
 		rows, err := db.Query(sqlText, args...)
 		if err != nil {
 			return nil, err
@@ -59,7 +67,22 @@ func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([
 		if err != nil {
 			return nil, err
 		}
+		if sys != "" {
+			filtered := make([]map[string]any, 0, limit)
+			for _, row := range items {
+				if TerminalMatchesSystem(str(row["terminal"]), sys) {
+					filtered = append(filtered, row)
+					if len(filtered) >= limit {
+						break
+					}
+				}
+			}
+			items = filtered
+		}
 		if len(items) > 0 {
+			if len(items) > limit {
+				items = items[:limit]
+			}
 			return items, nil
 		}
 	}
