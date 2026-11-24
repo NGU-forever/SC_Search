@@ -181,12 +181,12 @@ func answerGuideIntent(db *sql.DB, plan map[string]any, entities []map[string]an
 	missing := []string{}
 
 	if intent == "earn_meta" {
-		rows, err := ListMissions(db, "", "", "", 5)
+		list, err := ListMissions(db, "", "", "", 5)
 		if err != nil {
 			return nil, err
 		}
 		missions := []map[string]any{}
-		for _, r := range rows {
+		for _, r := range list.Rows {
 			missions = append(missions, map[string]any{
 				"canonical_name": r["canonical_name"], "title": r["title"],
 				"reward_uec": r["reward_uec"], "systems": r["systems"],
@@ -194,7 +194,7 @@ func answerGuideIntent(db *sql.DB, plan map[string]any, entities []map[string]an
 			})
 		}
 		evidence["missions"] = missions
-		for i, r := range rows {
+		for i, r := range list.Rows {
 			if i >= 4 {
 				break
 			}

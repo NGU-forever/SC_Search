@@ -96,12 +96,12 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 		if faction != nil {
 			fname = str(faction["canonical_name"])
 		}
-		rows, err := ListMissions(db, fname, "", "", 8)
+		list, err := ListMissions(db, fname, "", "", 8)
 		if err != nil {
 			return nil, err
 		}
 		missions := []map[string]any{}
-		for _, r := range rows {
+		for _, r := range list.Rows {
 			missions = append(missions, map[string]any{
 				"canonical_name": r["canonical_name"], "title": r["title"],
 				"reward_uec": r["reward_uec"], "systems": r["systems"],
@@ -109,9 +109,9 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 			})
 		}
 		evidence["missions"] = missions
-		if len(rows) > 0 {
+		if len(list.Rows) > 0 {
 			bits := []string{}
-			for i, r := range rows {
+			for i, r := range list.Rows {
 				if i >= 5 {
 					break
 				}
@@ -133,7 +133,7 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 				bits = append(bits, bit)
 			}
 			draft = fmt.Sprintf("%s 相关任务示例：%s%s。", orLabel(label, fname), strings.Join(bits, "；"), draftLiveSuffix(live, ""))
-			detailAvailable = len(rows) > 5
+			detailAvailable = len(list.Rows) > 5 || list.Truncated
 			if detailAvailable {
 				followUps = []string{"看更多任务"}
 			}

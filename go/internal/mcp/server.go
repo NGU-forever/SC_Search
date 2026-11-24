@@ -131,7 +131,7 @@ func NewServer(db *sql.DB) *mcp.Server {
 			name, _ := input["name_or_id"].(string)
 			detail, _ := input["detail"].(string)
 			if detail == "" {
-				detail = "full"
+				detail = "compact"
 			}
 			data, err := query.EntityFacts(db, name, detail)
 			if err != nil {
@@ -195,15 +195,19 @@ func NewServer(db *sql.DB) *mcp.Server {
 			faction, _ := input["faction"].(string)
 			rankKeyword, _ := input["rank_keyword"].(string)
 			system, _ := input["system"].(string)
-			limit := asInt(input["limit"], 10)
-			data, err := query.ListMissions(db, faction, rankKeyword, system, limit)
+			limit := asInt(input["limit"], query.DefaultMissionLimit)
+			list, err := query.ListMissions(db, faction, rankKeyword, system, limit)
 			if err != nil {
 				return envResult(errEnv(err.Error()), true)
 			}
-			if len(data) == 0 {
+			if len(list.Rows) == 0 {
 				return envResult(noMatchEnv("no missions matched", nil), false)
 			}
-			return envResult(okEnv(data, withFreshness(data)), false)
+			meta := withFreshness(list.Rows)
+			meta["total"] = list.Total
+			meta["truncated"] = list.Truncated
+			meta["limit"] = list.Limit
+			return envResult(okEnv(list.Rows, meta), false)
 		})
 
 	add("sc_query_plan", "Plan MCP vs browser steps for a Star Citizen question (no Erkul scrape).",

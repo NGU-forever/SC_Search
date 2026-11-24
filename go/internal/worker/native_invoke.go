@@ -46,7 +46,7 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv(fmt.Sprintf("no prices for commodity=%q side=%q", commodity, side), []any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
 	case "sc_terminal_prices":
 		terminal, _ := args["terminal"].(string)
 		side, _ := args["side"].(string)
@@ -57,19 +57,19 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv(fmt.Sprintf("no prices for terminal=%q", terminal), []any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
 	case "sc_data_freshness":
 		source, _ := args["source"].(string)
 		data, err := query.DataFreshness(db, source)
 		if err != nil {
 			return errEnv(err), true
 		}
-		return okEnv(data, map[string]any{}), true
+		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
 	case "sc_entity_facts":
 		name, _ := args["name_or_id"].(string)
 		detail, _ := args["detail"].(string)
 		if detail == "" {
-			detail = "full"
+			detail = "compact" // P0: default slim for LLM clients / worker
 		}
 		data, err := query.EntityFacts(db, name, detail)
 		if err != nil {
@@ -78,20 +78,28 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if data == nil {
 			return noMatchEnv(fmt.Sprintf("entity not found: %q", name), map[string]any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		meta := map[string]any{}
+		if ent, ok := data["entity"].(map[string]any); ok {
+			meta["game_version"] = ent["game_version"]
+		}
+		return okEnv(data, query.AttachFreshness(db, meta)), true
 	case "sc_list_missions":
 		faction, _ := args["faction"].(string)
 		rank, _ := args["rank_keyword"].(string)
 		system, _ := args["system"].(string)
-		limit := argInt(args["limit"], 10)
-		data, err := query.ListMissions(db, faction, rank, system, limit)
+		limit := argInt(args["limit"], query.DefaultMissionLimit)
+		list, err := query.ListMissions(db, faction, rank, system, limit)
 		if err != nil {
 			return errEnv(err), true
 		}
-		if len(data) == 0 {
+		if len(list.Rows) == 0 {
 			return noMatchEnv("no missions matched", []any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		meta := query.AttachFreshness(db, query.MetaFromRows(list.Rows))
+		meta["total"] = list.Total
+		meta["truncated"] = list.Truncated
+		meta["limit"] = list.Limit
+		return okEnv(list.Rows, meta), true
 	case "sc_locations":
 		q, _ := args["query"].(string)
 		system, _ := args["system"].(string)
@@ -104,7 +112,7 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv("no locations matched", []any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
 	case "sc_search_docs":
 		q, _ := args["query"].(string)
 		limit := argInt(args["limit"], 5)
@@ -115,7 +123,7 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if len(data) == 0 {
 			return noMatchEnv(fmt.Sprintf("no documents matched query=%q", q), []any{}), true
 		}
-		return okEnv(data, map[string]any{}), true
+		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
 	case "sc_intents":
 		data, err := query.IntentsCatalog()
 		if err != nil {
@@ -141,7 +149,11 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		if err != nil {
 			return errEnv(err), true
 		}
-		return okEnv(data, map[string]any{}), true
+		meta := map[string]any{}
+		if gv, ok := data["live_game_version"]; ok {
+			meta["game_version"] = gv
+		}
+		return okEnv(data, query.AttachFreshness(db, meta)), true
 	default:
 		return nil, false
 	}

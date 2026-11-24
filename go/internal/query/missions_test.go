@@ -14,17 +14,26 @@ func TestListMissionsBasic(t *testing.T) {
 	}
 	defer sqlDB.Close()
 
-	rows, err := ListMissions(sqlDB, "", "", "", 5)
+	list, err := ListMissions(sqlDB, "", "", "", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) == 0 {
+	if len(list.Rows) == 0 {
 		t.Fatal("expected some missions")
 	}
-	if _, ok := rows[0]["canonical_name"]; !ok {
-		t.Fatalf("missing canonical_name: %#v", rows[0])
+	if _, ok := list.Rows[0]["canonical_name"]; !ok {
+		t.Fatalf("missing canonical_name: %#v", list.Rows[0])
 	}
-	if _, ok := rows[0]["entity_id"]; ok {
+	if _, ok := list.Rows[0]["entity_id"]; ok {
 		t.Fatal("entity_id should be stripped from public rows")
+	}
+	if list.Total < len(list.Rows) {
+		t.Fatalf("total %d < rows %d", list.Total, len(list.Rows))
+	}
+	if list.Limit != 5 {
+		t.Fatalf("limit=%d", list.Limit)
+	}
+	if list.Total > 5 && !list.Truncated {
+		t.Fatal("expected truncated=true when total>limit")
 	}
 }

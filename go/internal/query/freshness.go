@@ -80,3 +80,34 @@ func str(v any) string {
 		return ""
 	}
 }
+
+// MetaFromRows copies game_version / sync timestamps from the first result row.
+func MetaFromRows(rows []map[string]any) map[string]any {
+	meta := map[string]any{}
+	if len(rows) == 0 {
+		return meta
+	}
+	first := rows[0]
+	if gv, ok := first["game_version"]; ok {
+		meta["game_version"] = gv
+	}
+	if v, ok := first["reported_at"]; ok && v != nil {
+		meta["synced_at"] = v
+	} else if v, ok := first["finished_at"]; ok && v != nil {
+		meta["synced_at"] = v
+	}
+	return meta
+}
+
+// AttachFreshness sets as_of (Live) and stale when row game_version disagrees with SCMDB Live.
+func AttachFreshness(db *sql.DB, meta map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range meta {
+		out[k] = v
+	}
+	live, _ := LiveGameVersion(db)
+	out["as_of"] = live
+	rowVer := ShortLiveLabel(str(out["game_version"]))
+	out["stale"] = rowVer != "" && live != "" && rowVer != live
+	return out
+}

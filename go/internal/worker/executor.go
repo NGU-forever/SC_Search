@@ -84,6 +84,9 @@ func waves(ctx context.Context, calls []map[string]any, handlers Invoker) ([]map
 				if c["augmented"] == true {
 					row["augmented"] = true
 				}
+				if w, ok := c["evidence_weight"]; ok {
+					row["evidence_weight"] = w
+				}
 				ch <- pair{cid: cid, row: row}
 			}(cid)
 		}
@@ -165,21 +168,34 @@ func RunPlan(ctx context.Context, plan map[string]any, handlers Invoker) map[str
 	}
 
 	evidence := []map[string]any{}
+	strongEvidence := []map[string]any{}
 	for _, r := range callResults {
-		if r["ok"] == true && dataUseful(r["data"]) {
-			evidence = append(evidence, map[string]any{
-				"id": r["id"], "tool": r["tool"], "ok": r["ok"],
-				"data": r["data"], "meta": r["meta"],
-			})
+		if r["ok"] != true || !dataUseful(r["data"]) {
+			continue
+		}
+		item := map[string]any{
+			"id": r["id"], "tool": r["tool"], "ok": r["ok"],
+			"data": r["data"], "meta": r["meta"],
+		}
+		if r["augmented"] == true {
+			item["augmented"] = true
+		}
+		if w, ok := r["evidence_weight"]; ok {
+			item["evidence_weight"] = w
+		}
+		evidence = append(evidence, item)
+		if evidenceWeight(r) > 0 {
+			strongEvidence = append(strongEvidence, item)
 		}
 	}
 
 	mismatch := CheckMismatch(primary, callResults)
-	empty := EvidenceIsEmpty(evidence)
+	empty := EvidenceIsEmpty(strongEvidence)
 	strongMissing := StrongFamilyMissing(primary, callResults)
 	failed := CollectFailedCalls(callResults)
 	suggestReplan := ReplanSuggested(mismatch, replanCount, 1)
 	suggestSlots := SlotRetrySuggested(empty, mismatch, replanCount, 1, strongMissing)
+	aggMeta := AggregateCallMeta(callResults)
 
 	hint := ""
 	if suggestReplan {
@@ -201,22 +217,73 @@ func RunPlan(ctx context.Context, plan map[string]any, handlers Invoker) map[str
 	notes, _ := plan["notes"].(string)
 
 	return map[string]any{
-		"ok":                   true,
-		"primary":              primary,
-		"slots":                slots,
-		"question":             question,
-		"path":                 path,
-		"notes":                notes,
-		"replan_count":         replanCount,
-		"evidence":             evidence,
-		"call_results":         callResults,
-		"augmented_calls":      augmentedCalls,
-		"mismatch":             mismatch,
-		"replan_suggested":     suggestReplan,
-		"evidence_empty":       empty,
+		"ok":                    true,
+		"primary":               primary,
+		"slots":                 slots,
+		"question":              question,
+		"path":                  path,
+		"notes":                 notes,
+		"replan_count":          replanCount,
+		"evidence":              evidence,
+		"call_results":          callResults,
+		"augmented_calls":       augmentedCalls,
+		"mismatch":              mismatch,
+		"replan_suggested":      suggestReplan,
+		"evidence_empty":        empty,
 		"strong_family_missing": strongMissing,
-		"failed_calls":         failed,
-		"slot_retry_suggested": suggestSlots,
-		"reasoning_hint":       hint,
+		"failed_calls":          failed,
+		"slot_retry_suggested":  suggestSlots,
+		"reasoning_hint":        hint,
+		"meta":                  aggMeta,
+	}
+}
+
+// AggregateCallMeta preserves per-call freshness into a worker-level summary.
+func AggregateCallMeta(callResults []map[string]any) map[string]any {
+	out := map[string]any{
+		"stale":         false,
+		"sources":       []any{},
+		"game_versions": []any{},
+	}
+	versions := map[string]struct{}{}
+	stale := false
+	var asOf any
+	for _, r := range callResults {
+		meta, _ := r["meta"].(map[string]any)
+		if meta == nil {
+			continue
+		}
+		if meta["stale"] == true {
+			stale = true
+		}
+		if asOf == nil {
+			if v, ok := meta["as_of"]; ok && v != nil && v != "" {
+				asOf = v
+			}
+		}
+		if gv, ok := meta["game_version"]; ok && gv != nil && gv != "" {
+			key := strAny(gv)
+			if _, seen := versions[key]; !seen {
+				versions[key] = struct{}{}
+				out["game_versions"] = append(out["game_versions"].([]any), gv)
+			}
+		}
+		if tool, ok := r["tool"].(string); ok && tool != "" {
+			out["sources"] = append(out["sources"].([]any), tool)
+		}
+	}
+	out["stale"] = stale
+	if asOf != nil {
+		out["as_of"] = asOf
+	}
+	return out
+}
+
+func strAny(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	default:
+		return ""
 	}
 }

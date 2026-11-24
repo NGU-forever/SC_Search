@@ -29,7 +29,8 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 	}
 	mode := strings.ToLower(strings.TrimSpace(detail))
 	if mode != "compact" && mode != "full" {
-		mode = "full"
+		// P0: default compact so faction/location dumps don't blow LLM context.
+		mode = "compact"
 	}
 
 	var entity map[string]any

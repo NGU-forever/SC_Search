@@ -16,6 +16,9 @@ var (
 	}
 )
 
+// DefaultMissionLimit is used when callers pass limit<=0 (DeepSeek P0: raise from 10).
+const DefaultMissionLimit = 50
+
 const missionSelectSQL = `
 		SELECT
 		  e.id AS entity_id,
@@ -62,6 +65,14 @@ const missionSelectSQL = `
 		WHERE e.kind = 'mission'
 `
 
+// MissionList is a truncated mission query with total/truncated metadata.
+type MissionList struct {
+	Rows      []map[string]any
+	Total     int
+	Truncated bool
+	Limit     int
+}
+
 func NormalizeMissionText(text string) string {
 	return spaceStrip.ReplaceAllString(strings.ToLower(text), "")
 }
@@ -92,54 +103,82 @@ func RankKeywordTokens(rankKeyword string, faction string) []string {
 	return out
 }
 
-func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) ([]map[string]any, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	sqlText := missionSelectSQL
-	args := []any{}
+func missionFilters(db *sql.DB, faction, system string) (where string, args []any, err error) {
+	where = ""
+	args = []any{}
 	if strings.TrimSpace(faction) != "" {
 		pattern, err := contractorPattern(db, faction)
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
-		sqlText += " AND fc.value_text LIKE ? COLLATE NOCASE"
+		where += " AND fc.value_text LIKE ? COLLATE NOCASE"
 		args = append(args, "%"+pattern+"%")
 	}
 	if strings.TrimSpace(system) != "" {
-		sqlText += " AND COALESCE(fs.value_text, '') LIKE ? COLLATE NOCASE"
+		where += " AND COALESCE(fs.value_text, '') LIKE ? COLLATE NOCASE"
 		args = append(args, "%"+strings.TrimSpace(system)+"%")
+	}
+	return where, args, nil
+}
+
+// ListMissions returns missions matching filters (default limit 50) plus total/truncated.
+func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) (MissionList, error) {
+	if limit <= 0 {
+		limit = DefaultMissionLimit
+	}
+	where, args, err := missionFilters(db, faction, system)
+	if err != nil {
+		return MissionList{}, err
 	}
 	tokens := []string{}
 	if strings.TrimSpace(rankKeyword) != "" {
 		tokens = RankKeywordTokens(rankKeyword, faction)
 	}
-	if len(tokens) > 0 {
-		sqlText += " ORDER BY fr.value_num DESC NULLS LAST"
-	} else {
+
+	sqlText := missionSelectSQL + where
+	queryArgs := append([]any{}, args...)
+	if len(tokens) == 0 {
 		sqlText += " ORDER BY fr.value_num DESC NULLS LAST LIMIT ?"
-		args = append(args, limit)
+		// Fetch limit+1 to detect truncation without a separate COUNT when cheap;
+		// still run COUNT for accurate total.
+		queryArgs = append(queryArgs, limit)
+	} else {
+		sqlText += " ORDER BY fr.value_num DESC NULLS LAST"
 	}
-	rows, err := db.Query(sqlText, args...)
+
+	total, err := countMissions(db, where, args)
 	if err != nil {
-		return nil, err
+		return MissionList{}, err
+	}
+
+	rows, err := db.Query(sqlText, queryArgs...)
+	if err != nil {
+		return MissionList{}, err
 	}
 	items, err := scanMaps(rows)
 	rows.Close()
 	if err != nil {
-		return nil, err
-	}
-	if len(tokens) == 0 {
-		return dropEntityID(items), nil
+		return MissionList{}, err
 	}
 
+	if len(tokens) == 0 {
+		out := dropEntityID(items)
+		return MissionList{
+			Rows:      out,
+			Total:     total,
+			Truncated: total > len(out),
+			Limit:     limit,
+		}, nil
+	}
+
+	// Token path: total becomes match count after scoring (not unfiltered SQL total).
 	ids := make([]int64, 0, len(items))
 	for _, r := range items {
 		ids = append(ids, asInt64(r["entity_id"]))
 	}
 	aliasMap, err := aliasesForEntities(db, ids)
 	if err != nil {
-		return nil, err
+		return MissionList{}, err
 	}
 
 	type scored struct {
@@ -167,6 +206,7 @@ func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) ([
 		rj := asFloat(scoredRows[j].row["reward_uec"])
 		return ri > rj
 	})
+	matchTotal := len(scoredRows)
 	out := make([]map[string]any, 0, limit)
 	for _, s := range scoredRows {
 		if len(out) >= limit {
@@ -174,7 +214,27 @@ func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) ([
 		}
 		out = append(out, s.row)
 	}
-	return out, nil
+	return MissionList{
+		Rows:      out,
+		Total:     matchTotal,
+		Truncated: matchTotal > len(out),
+		Limit:     limit,
+	}, nil
+}
+
+func countMissions(db *sql.DB, where string, args []any) (int, error) {
+	q := `
+		SELECT COUNT(*)
+		FROM entities e
+		INNER JOIN facts fc ON fc.entity_id = e.id AND fc.key = 'contractor'
+		LEFT JOIN facts fs ON fs.entity_id = e.id AND fs.key = 'systems'
+		WHERE e.kind = 'mission'
+	` + where
+	var n int
+	if err := db.QueryRow(q, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func contractorPattern(db *sql.DB, faction string) (string, error) {

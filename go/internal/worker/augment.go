@@ -55,8 +55,10 @@ func MaybeAugment(calls []map[string]any, results map[string]map[string]any, pri
 			}
 			extra = append(extra, map[string]any{
 				"id": cid, "tool": "sc_entity_facts",
-				"args": map[string]any{"name_or_id": canon},
+				"args": map[string]any{"name_or_id": canon, "detail": "compact"},
 				"needs": []any{}, "augmented": true,
+				// resolve→facts counts as real evidence
+				"evidence_weight": 1,
 			})
 			existingIDs[cid] = struct{}{}
 		}
@@ -99,6 +101,8 @@ func MaybeAugment(calls []map[string]any, results map[string]map[string]any, pri
 				extra = append(extra, map[string]any{
 					"id": cid, "tool": tool, "args": args,
 					"needs": []any{}, "augmented": true,
+					// Empty-intent fallback must not satisfy strong/expected families.
+					"evidence_weight": 0,
 				})
 				existingIDs[cid] = struct{}{}
 			}

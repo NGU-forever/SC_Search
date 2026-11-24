@@ -85,10 +85,30 @@ func dataUseful(data any) bool {
 	}
 }
 
+func evidenceWeight(row map[string]any) int {
+	v, ok := row["evidence_weight"]
+	if !ok {
+		return 1
+	}
+	switch t := v.(type) {
+	case int:
+		return t
+	case int64:
+		return int(t)
+	case float64:
+		return int(t)
+	default:
+		return 1
+	}
+}
+
 func familiesPresent(callResults []map[string]any) map[string]struct{} {
 	found := map[string]struct{}{}
 	for _, row := range callResults {
 		if row["ok"] != true {
+			continue
+		}
+		if evidenceWeight(row) <= 0 {
 			continue
 		}
 		if !dataUseful(row["data"]) {
