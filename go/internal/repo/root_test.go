@@ -20,3 +20,22 @@ func TestFindRoot(t *testing.T) {
 		t.Fatalf("expected go/go.mod under %s: %v", root, err)
 	}
 }
+
+func TestFindRootReleaseMarker(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, releaseMarker)
+	if err := os.WriteFile(marker, []byte("release\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(dir, "scripts")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root, err := FindRoot(nested)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root != dir {
+		t.Fatalf("got %q want %q", root, dir)
+	}
+}

@@ -1,27 +1,128 @@
 # SC Search — 星际公民本地问答助手
 
-在 [豆包](https://www.doubao.com/)（豆包工作）或其它支持 MCP 的 AI 客户端里，用**本地数据库**快速查《星际公民》物价、任务/蓝图、飞船参数和中英俗称，不必每次都翻网页。
+在 [豆包](https://www.doubao.com/)（豆包工作）或 Cursor 等支持 MCP 的 AI 客户端里，用**本地数据库**查《星际公民》物价、任务/蓝图、飞船参数和中英俗称。
 
-运行时为 **Go 二进制**（MCP + ingest）。
+普通用户：**下载 Release zip 即可，不必安装 Go。** 包内已含可执行文件和知识库。
 
 ---
 
-## 最省事：对 Agent 说「初始化」
+## 使用教程（推荐）
 
-把本仓库用 Cursor / Claude Code / Codex 等 **能改本地文件、能跑终端** 的 Agent 打开后，直接发：
+### 1. 下载对应系统的包
+
+打开 [Releases](https://github.com/NGU-forever/SC_Search/releases)，按电脑选择 zip：
+
+| 你的系统 | 下载文件名大致为 |
+| :--- | :--- |
+| Apple Silicon Mac（M 系列） | `sc-search-*-darwin-arm64.zip` |
+| Intel Mac | `sc-search-*-darwin-amd64.zip` |
+| Windows 64 位 | `sc-search-*-windows-amd64.zip` |
+| Linux x86_64 | `sc-search-*-linux-amd64.zip` |
+| Linux ARM64 | `sc-search-*-linux-arm64.zip` |
+
+不确定 Mac 芯片：左上角苹果菜单 →「关于本机」；芯片含 “Apple” 选 `arm64`，否则选 `amd64`。
+
+### 2. 解压
+
+解压到任意目录，例如 `~/Apps/sc-search-0.1.0-darwin-arm64/`。  
+解压后应能看到：
+
+```text
+go/sc-search          # Windows 为 go/sc-search.exe
+data/sc_knowledge.sqlite
+scripts/setup_mcp.sh  # Windows 为 setup_mcp.ps1
+AGENTS.md
+README.md
+```
+
+**不要删 `data/sc_knowledge.sqlite`**——问答数据都在这里。
+
+### 3. 接到 AI 客户端
+
+#### 方式 A：有 Cursor / Claude Code 等 Agent（最省事）
+
+1. 用客户端 **打开解压后的整个文件夹**（不要只开某个子文件）。
+2. 对新对话发送：
 
 ```text
 初始化
 ```
 
-Agent 会按 [AGENTS.md](AGENTS.md) 里的「初始化」剧本自动：检查 Go → 构建 `go/sc-search` → `ingest init` + 同步数据 → 写入本客户端的 MCP 配置（绝对路径）→ 告诉你如何重载连接器。
+3. Agent 只会运行 `setup_mcp` 写入 MCP 绝对路径，**不会编译、不会重写数据库**。
+4. 按提示 **重载 MCP** 或新开对话，即可提问。
 
-| 客户端 | Agent 能自动做完的 | 你可能还要点一下的 |
-| :--- | :--- | :--- |
-| Cursor / Claude Code / Codex 等 | 构建、同步、写 `mcp.json` | 重载 MCP / 新开对话 |
-| 豆包工作等「只配连接器、不写仓库」 | 构建、同步，并打印连接器字段 | 把表格字段粘进自定义连接器 |
+#### 方式 B：手动脚本（无 Agent 时）
 
-没有 Agent、或想自己敲命令：继续看下面「5 分钟快速开始」。
+macOS / Linux：
+
+```bash
+cd /解压后的目录
+chmod +x scripts/*.sh
+./scripts/setup_mcp.sh
+```
+
+Windows PowerShell：
+
+```powershell
+cd X:\解压后的目录
+.\scripts\setup_mcp.ps1
+```
+
+然后在客户端重载 MCP。
+
+#### 方式 C：豆包工作（自定义连接器）
+
+1. 先完成上面的脚本，或自己记下两个绝对路径：
+   - 命令：`…/go/sc-search`（Windows：`…\go\sc-search.exe`）
+   - 数据库：`…/data/sc_knowledge.sqlite`
+2. 豆包 → **技能 · 连接器 · 伙伴** → **新建自定义连接器**（选**本地电脑**，不要选云电脑）：
+
+| 字段 | 填写 |
+| :--- | :--- |
+| 服务器名称 | `sc-search` |
+| 传输类型 | **STDIO** |
+| 命令 | `go/sc-search` 的**绝对路径** |
+| 参数 | `mcp` |
+| 环境变量 | `SC_SEARCH_DB` = `data/sc_knowledge.sqlite` 的**绝对路径** |
+
+3. 保存并启用连接器后开始提问。
+
+### 4. 可以怎么问
+
+直接用自然语言即可，例如：
+
+- 「黄金在哪卖贵？」
+- 「大白鲨是哪艘船？」
+- 「Carrack 载货量和厂家？」
+- 「红风 Junior 能接什么任务？」
+- 「本地数据是什么时候同步的？」
+
+编排细节见 [ORCHESTRATION.md](ORCHESTRATION.md)。常见工具对应关系：
+
+| 你想问的 | 大致会用到的工具 |
+| :--- | :--- |
+| 简单事实/物价 | `sc_answer` |
+| 复杂题 | `sc_route` → `sc_worker_run` |
+| 最高卖价/最低买价 | `sc_best_prices` |
+| 中英俗称解析 | `sc_resolve_name` |
+| 飞船参数 | `sc_entity_facts` |
+| 任务/蓝图列表 | `sc_list_missions` |
+| 数据新鲜度 | `sc_data_freshness` |
+
+### 5. 游戏大版本更新后（可选）
+
+Release 包里的库是发布时的快照。要刷新到最新：
+
+```bash
+# 可选：查实时物价时配置 Token
+cp config/.env.example config/.env
+# 编辑 config/.env，填入 UEX_API_TOKEN（https://uexcorp.space/api/apps）
+
+./scripts/sync_all.sh
+# Windows: .\scripts\sync_all.ps1
+```
+
+用的是包内已有二进制，**仍然不必安装 Go**。MCP 不会自动改库。
 
 ---
 
@@ -29,123 +130,34 @@ Agent 会按 [AGENTS.md](AGENTS.md) 里的「初始化」剧本自动：检查 G
 
 | 项目 | 说明 |
 | :--- | :--- |
-| 电脑 | macOS / Windows / Linux 均可 |
-| Go | **1.22+**（用于构建 `go/sc-search`） |
-| AI 客户端 | 推荐 [豆包](https://www.doubao.com/)；也可用 Cursor 等 STDIO MCP 客户端 |
-| UEX 账号（可选） | 要查**实时跑商物价**时需要；只查任务/飞船/Wiki 可不配 |
+| 电脑 | macOS / Windows / Linux |
+| Go | **普通用户不需要**；仅从源码开发时要 1.22+ |
+| AI 客户端 | [豆包](https://www.doubao.com/) / Cursor / Claude Code 等支持本地 STDIO MCP 的客户端 |
+| UEX（可选） | 包内已有物价快照；要自己刷实时价再配 Token |
 
 ---
 
-## 5 分钟快速开始
+## 开发者：从源码构建
 
-下面命令在**项目根目录**执行（也可跳过本节，改对 Agent 说「初始化」）。
-
-### 1. 构建
+克隆本仓库后，在项目根目录：
 
 ```bash
 cd go && go build -o sc-search ./cmd/sc-search && cd ..
-```
-
-### 2. 配置（查物价时需要）
-
-1. 打开 [UEX My Apps](https://uexcorp.space/api/apps)，登录并**创建一个 App**，复制 **App Access Token**。
-2. 复制环境文件并填入 Token：
-
-```bash
-cp config/.env.example config/.env
-```
-
-```text
-UEX_API_TOKEN=粘贴你的Token
-```
-
-`SC_SEARCH_DB` 可留空（默认 `data/sc_knowledge.sqlite`）。
-
-### 3. 初始化并下载数据
-
-```bash
-# macOS / Linux
-chmod +x scripts/sync_all.sh scripts/run_mcp.sh
+cp config/.env.example config/.env   # 可选：填 UEX_API_TOKEN
+chmod +x scripts/*.sh
 ./scripts/sync_all.sh
+./scripts/setup_mcp.sh
 ```
 
-```powershell
-# Windows PowerShell
-.\scripts\sync_all.ps1
-```
+对 Agent 说「初始化」亦可（开发树会走构建 + 同步）。
 
-脚本会：`init` → `uex` → `scmdb` → `scw` → `wiki` → `aliases` → `localization`。  
-未配置 `UEX_API_TOKEN` 时物价同步会跳过。
-
-手动逐步：
+### 维护者发版
 
 ```bash
-./go/sc-search ingest init
-./go/sc-search ingest sync uex
-./go/sc-search ingest sync scmdb live
-./go/sc-search ingest sync scw
-./go/sc-search ingest sync wiki
-./go/sc-search ingest sync aliases
-./go/sc-search ingest sync localization
-./go/sc-search ingest status
+./scripts/package_release.sh --version 0.1.0
+# 或：git tag v0.1.0 && git push origin v0.1.0
+# → GitHub Actions 多平台打包并上传 Release（含预同步 SQLite）
 ```
-
-### 4. 接到豆包 / Cursor
-
-1. 确认 MCP 能启动：
-
-```bash
-./scripts/run_mcp.sh
-# 或 ./go/sc-search mcp
-```
-
-2. 豆包自定义连接器（STDIO，**本地电脑**）：
-
-| 字段 | 填写 |
-| :--- | :--- |
-| 服务器名称 | `sc-search` |
-| 传输类型 | **STDIO** |
-| 命令 | `/绝对路径/SC_Search/go/sc-search`（或 `scripts/run_mcp.sh`） |
-| 参数 | `mcp`（用脚本时可留空） |
-| 环境变量 | `SC_SEARCH_DB` = 数据库绝对路径 |
-
-Cursor：
-
-```bash
-mkdir -p .cursor
-cp config/mcp.cursor.example.json .cursor/mcp.json
-```
-
-把绝对路径改成你的仓库路径后重载 MCP（或对 Agent 说「初始化」自动写）。
-
-### 5. 开始提问
-
-1. **简单**单实体静态度/价 → `sc_answer`
-2. **复杂**题 → `primary` + slots → `sc_route` → `sc_worker_run` → 成文
-3. `replan_suggested` / `slot_retry_suggested` 各最多再跑 1 次
-
-完整编排见 [ORCHESTRATION.md](ORCHESTRATION.md)。
-
-| 你想问的 | 大致会用到的工具 |
-| :--- | :--- |
-| 简单事实/物价 | `sc_answer` |
-| 复杂题 | `sc_route` → `sc_worker_run` |
-| 「黄金在哪卖贵？」 | `sc_best_prices` |
-| 「大白鲨是哪艘船？」 | `sc_resolve_name` |
-| 「Carrack 载货 / 厂家？」 | `sc_entity_facts` |
-| 「红风 Junior 能接什么任务？」 | `sc_list_missions` |
-| 「数据是什么时候同步的？」 | `sc_data_freshness` |
-
----
-
-## 游戏更新后
-
-```bash
-./scripts/sync_all.sh
-# 或只同步 PTU：./go/sc-search ingest sync scmdb ptu
-```
-
-MCP **不会**自动改库；同步请在终端手动执行。
 
 ---
 
@@ -159,14 +171,20 @@ MCP **不会**自动改库；同步请在终端手动执行。
 
 ## 常见问题
 
-**Q：没有 UEX Token 能用吗？**  
-能。跳过 `sync uex` 即可。
+**Q：一定要装 Go 吗？**  
+不要。下 Release → 解压 → `setup_mcp` / 「初始化」即可。
+
+**Q：zip 里有数据库吗？**  
+有。`data/sc_knowledge.sqlite` 已打进包，解压就能查。
 
 **Q：MCP 里看不到 sc-search？**  
-确认命令是 `go/sc-search` 的绝对路径、`args=["mcp"]`，并重载连接器。自检：`./scripts/run_mcp.sh`。
+确认命令是 `go/sc-search` 的绝对路径、参数为 `mcp`，并重载连接器。自检：`./scripts/run_mcp.sh`。
+
+**Q：没有 UEX Token 能用吗？**  
+能。Release 快照已可用；刷新实时价时再配 Token。
 
 **Q：查询结果是空的？**  
-`./go/sc-search ingest status`，空库先 `init` 再 `sync`。
+`./go/sc-search ingest status` 看库是否正常。开发树空库需先 `sync_all`。
 
 **Q：我想加俗称？**  
 编辑 `data/seed_aliases.json`，再 `./go/sc-search ingest sync aliases`。

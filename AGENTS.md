@@ -20,50 +20,58 @@
 
 **目标**：本机可查询；MCP 能被当前客户端加载。按序执行，能自动做的不要甩给用户。
 
-1. **定位仓库根**（含 `go/cmd/sc-search`、`scripts/sync_all.sh` 的目录）。记下绝对路径 `ROOT`。
-2. **检查 Go**：`go version`；若无 Go，说明需安装 1.22+，并给出下载页；有则继续。
-3. **构建**：
+### 0. 定位根目录并判定模式
+
+定位 `ROOT`（含 `scripts/setup_mcp.sh` / `data/` 的目录；Release 包根有 `.sc-search-root`）。
+
+**Release / 已就绪**（满足即可走快路径，**禁止**再 `go build` / `sync_all`）：
+
+- 存在可执行的 `go/sc-search`（或 Windows 下 `go/sc-search.exe`），**且**
+- 存在非空的 `data/sc_knowledge.sqlite`
+
+否则为 **源码开发树**，走完整构建+同步。
+
+### A. Release / 已就绪（快路径）
+
+1. `chmod +x "$ROOT/scripts/setup_mcp.sh" "$ROOT/scripts/run_mcp.sh" 2>/dev/null || true`
+2. 执行：
+   ```bash
+   cd "$ROOT" && ./scripts/setup_mcp.sh
+   # Windows: .\scripts\setup_mcp.ps1
+   ```
+   脚本只写入 `.mcp.json` 与 `.cursor/mcp.json`（绝对路径），**不编译、不改库**。
+3. **豆包等工作端**：无法写 UI 时，用表格列出：名称 `sc-search`、STDIO、命令=`<ROOT>/go/sc-search`、参数=`mcp`、环境变量 `SC_SEARCH_DB=<ROOT>/data/sc_knowledge.sqlite`。
+4. 可选自检：`./go/sc-search ingest status` 或短时 STDIO 握手。
+5. 收尾：请用户 **重载 MCP / 新开对话**；需要刷新数据时再说「同步数据」（用包内二进制跑 `sync_all`，仍不必装 Go）。
+
+### B. 源码开发树（完整路径）
+
+1. **检查 Go**：`go version`；若无 Go，优先引导去 [GitHub Releases](https://github.com/NGU-forever/SC_Search/releases) 下对应平台 zip；仅开发才需安装 Go 1.22+。
+2. **构建**：
    ```bash
    cd "$ROOT/go" && go build -o sc-search ./cmd/sc-search
-   chmod +x "$ROOT/scripts/run_mcp.sh" "$ROOT/scripts/sync_all.sh" 2>/dev/null || true
+   chmod +x "$ROOT/scripts/"*.sh 2>/dev/null || true
    ```
-4. **可选 UEX**：若用户要实时物价且尚无 Token，提示打开 [UEX My Apps](https://uexcorp.space/api/apps)，把 Token 写入 `config/.env`（可从 `config/.env.example` 复制）。**不要编造 Token**；用户说跳过则跳过 `sync uex`。
-5. **建库并同步**（优先一键）：
+3. **可选 UEX**：若用户要实时物价且尚无 Token，提示打开 [UEX My Apps](https://uexcorp.space/api/apps)，写入 `config/.env`（可从 `config/.env.example` 复制）。**不要编造 Token**；用户说跳过则跳过 `sync uex`。
+4. **建库并同步**：
    ```bash
    cd "$ROOT" && ./scripts/sync_all.sh
    # Windows: .\scripts\sync_all.ps1
    ```
-   失败时再逐步：`./go/sc-search ingest init` → `sync scmdb live` → `scw` → `wiki` → `aliases` → `localization`（有 Token 再 `sync uex`）。最后 `./go/sc-search ingest status`。
-6. **写入 MCP 配置**（绝对路径，勿留占位符）：
-   - **Cursor**：写/更新 `.cursor/mcp.json`（模板 [`config/mcp.cursor.example.json`](config/mcp.cursor.example.json)；`.cursor/` 已 gitignore，勿提交本机路径）：
-     ```json
-     {
-       "mcpServers": {
-         "sc-search": {
-           "command": "<ROOT>/go/sc-search",
-           "args": ["mcp"],
-           "cwd": "<ROOT>",
-           "env": { "SC_SEARCH_DB": "<ROOT>/data/sc_knowledge.sqlite" }
-         }
-       }
-     }
-     ```
-   - **Claude Code / 其它读项目 `.mcp.json` 的客户端**：在仓库根写入同样内容的 `.mcp.json`（或该产品文档指定的路径）。
-   - **豆包工作等只能在 UI 填连接器的客户端**：Agent **无法替用户点 UI**。构建+同步仍要做完，然后用表格列出：名称 `sc-search`、STDIO、命令=`<ROOT>/go/sc-search`、参数=`mcp`、环境变量 `SC_SEARCH_DB=<ROOT>/data/sc_knowledge.sqlite`，请用户粘贴并保存。
-7. **自检**（可选）：对 `./go/sc-search mcp` 做一次短时 STDIO 握手，或调用 `sc_data_freshness`（若宿主已挂上工具）。
-8. **收尾告诉用户**：
-   - 请 **重载 MCP / 新开对话** 后再提问；
-   - 简单题可直接问事实；复杂题走 `sc_route` → `sc_worker_run`；
-   - 游戏大版本更新后跑 `./scripts/sync_all.sh`（或再说一次「同步数据」）。
+5. **写入 MCP**：优先 `./scripts/setup_mcp.sh`（同上绝对路径规则）。
+6. 自检与收尾同 A。
 
-禁止：在未构建、未配路径时假装 MCP 已可用；把相对路径写进 mcp.json；要求用户手动抄一长串命令却自己能跑终端。
+禁止：在未就绪时假装 MCP 已可用；把相对路径写进 mcp.json；Release 树上仍去装 Go / 重同步；要求用户手动抄一长串命令却自己能跑终端。
 
 ### MCP 运行时（Go）
 
 ```bash
+# 开发
 cd go && go build -o sc-search ./cmd/sc-search
-# Cursor MCP: command=<repo>/go/sc-search  args=["mcp"]
-# 或 ./scripts/run_mcp.sh
+# 或 Release / 已有二进制
+./scripts/setup_mcp.sh
+./scripts/run_mcp.sh
 ```
 
-Ingest：`./scripts/sync_all.sh` 或 `sc-search ingest init|status|sync …`。说明见 [`go/README.md`](go/README.md)。
+打包发版：`./scripts/package_release.sh`；打 `v*` tag 触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)。  
+Ingest：`./scripts/sync_all.sh` 或 `sc-search ingest …`。说明见 [`go/README.md`](go/README.md)。

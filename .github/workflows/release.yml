@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label without leading v (e.g. 0.1.0). Empty = tag or short SHA."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build host binary
+        run: |
+          cd go
+          CGO_ENABLED=0 go build -o sc-search ./cmd/sc-search
+
+      - name: Init and sync knowledge DB
+        env:
+          UEX_API_TOKEN: ${{ secrets.UEX_API_TOKEN }}
+        run: |
+          mkdir -p config
+          if [[ -n "${UEX_API_TOKEN:-}" ]]; then
+            printf 'UEX_API_TOKEN=%s\n' "$UEX_API_TOKEN" > config/.env
+          elif [[ -f config/.env.example ]]; then
+            cp config/.env.example config/.env
+          fi
+          ./scripts/sync_all.sh
+
+      - name: Upload DB bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-db
+          path: |
+            data/sc_knowledge.sqlite
+            data/community_guides.json
+            data/seed_aliases.json
+          if-no-files-found: error
+
+  package:
+    needs: prepare-db
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Download DB bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: knowledge-db
+          path: data
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Package zip
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/package_release.sh \
+            --version "${{ steps.ver.outputs.version }}" \
+            --goos "${{ matrix.goos }}" \
+            --goarch "${{ matrix.goarch }}"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all zips
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+          body: |
+            ## 使用方式（无需安装 Go）
+
+            1. 按系统下载对应 zip 并解压
+            2. 用 Cursor / Claude Code 等打开解压目录，对 Agent 说 **初始化**
+               - 或手动运行 `scripts/setup_mcp.sh` / `scripts\setup_mcp.ps1`
+            3. 重载 MCP 后即可提问
+
+            包内已含预编译二进制与知识库；初始化**不会**编译或重新写库。
+            需要刷新数据时，配置 `config/.env` 的 `UEX_API_TOKEN`（可选）后再跑 `scripts/sync_all.sh`（用包内二进制，仍不必装 Go）。

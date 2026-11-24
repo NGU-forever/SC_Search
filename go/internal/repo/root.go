@@ -6,7 +6,10 @@ import (
 	"path/filepath"
 )
 
-// FindRoot walks up from start (or cwd) looking for go/go.mod (repo root).
+const releaseMarker = ".sc-search-root"
+
+// FindRoot walks up from start (or cwd) looking for the project root.
+// Recognizes: go/go.mod (dev checkout), or .sc-search-root (Release zip).
 func FindRoot(start string) (string, error) {
 	if start == "" {
 		wd, err := os.Getwd()
@@ -20,6 +23,9 @@ func FindRoot(start string) (string, error) {
 		return "", err
 	}
 	for {
+		if fileExists(filepath.Join(dir, releaseMarker)) {
+			return dir, nil
+		}
 		if fileExists(filepath.Join(dir, "go", "go.mod")) {
 			return dir, nil
 		}
