@@ -282,19 +282,25 @@
     "kind": "ship"
   },
   {
-    "alias": "货轮C",
+    "alias": "货C",
     "target": "Hull C",
     "lang": "slang",
     "kind": "ship"
   },
   {
-    "alias": "货轮A",
+    "alias": "货A",
     "target": "Hull A",
     "lang": "slang",
     "kind": "ship"
   },
   {
-    "alias": "货轮B",
+    "alias": "货B",
+    "target": "Hull B",
+    "lang": "slang",
+    "kind": "ship"
+  },
+  {
+    "alias": "货b",
     "target": "Hull B",
     "lang": "slang",
     "kind": "ship"
