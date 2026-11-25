@@ -17,7 +17,7 @@ browser.wait_confirm=true 时先征得用户确认。
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
 - 库无字段不编造；`leave_open` 交互站摘要后把页面留给用户。
-- **改装**：先用 `sc_ask` 草稿；再问是否开 Erkul。
+- **改装**：社区优先 [Erkul Browse](https://erkul.games/browse)；Reddit 可补充但须**最新**帖（对照当前 Live，旧版方案勿当现行）；先成文/摘要，再问是否打开 Browse 或计算器。
 
 开发说明（**非运行时真相源**）：[ORCHESTRATION.md](ORCHESTRATION.md)、[`docs/state_machine_orchestration_design.md`](docs/state_machine_orchestration_design.md)。机器可读剧本：[`go/internal/router/intent_tools.json`](go/internal/router/intent_tools.json)。
 

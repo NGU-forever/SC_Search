@@ -10,6 +10,8 @@
 
 | 网站名称 | 域名 / URL | 主要用途 / 领域 | 记录时间 | 备注 |
 | :--- | :--- | :--- | :--- | :--- |
+| **Erkul Browse（社区改装）** | `https://erkul.games/browse` | 玩家发布的飞船改装方案列表；**loadout 社区主源**，Calculator 交互页另开 | 2026-11-26 | 用户指定：改装优先 Browse；Reddit 可作补充但须最新贴 |
+| **Reddit r/starcitizen（改装补充）** | `https://www.reddit.com/r/starcitizen` | 船/组件改装讨论补充源 | 2026-11-26 | 用户指定：可用，但必须用**最新**帖/评论，过期版本方案勿当现行 |
 | **豆包 / 豆包工作** | `https://www.doubao.com/` · [自定义连接器文档](https://www.doubao.com/work/docs/zh-cn/articles/705018132598-plugins) | 推荐 MCP 宿主：桌面端 STDIO 自定义连接器接入本仓库 `sc-search` | 2026-11-23 | 用户指定：开源 README 以豆包为默认 AI 客户端 |
 | **SCMDB** | `https://scmdb.net` | 制造/蓝图（Blueprint）数据库、配方材料明细、目标原料刷取指南（Target Farming） | 2026-11-17 | 用户分享：工业制造与蓝图核心工具站 |
 | **Regolith** | `https://regolith.rocks` | 采矿综合数据平台、激光头与模块破矿阻力/不稳定度计算、精炼方案产出模拟 | 2026-11-17 | 用户分享：采矿配装与破矿核心计算站 |
@@ -25,7 +27,7 @@
 
 | 网站名称 | 域名 / 链接 | 适用场景 |
 | :--- | :--- | :--- |
-| **Erkul Games** | `erkul.games` | 飞船配装、DPS/护盾/QT航程/能耗计算、配件售卖点查询 |
+| **Erkul Games** | `erkul.games` · [Browse 社区方案](https://erkul.games/browse) · Calculator | Browse=社区改装列表；Calculator=交互计算（需用户确认后再开） |
 | **UEX Corp** | `uexcorp.space` | 跑商贸易路线、货物价格、精炼收益、矿石价格动态 |
 | **SC Trade Tools** | `sc-trade.tools` | 贸易货物最优路线规划与黑市/违禁品收购点 |
 | **Star Citizen Wiki** | `starcitizen.tools` | 官方背景设定、星系天体、飞船历史参数、势力词条 |

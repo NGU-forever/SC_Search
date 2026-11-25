@@ -30,7 +30,8 @@ question → Classify
 
 - `mcp_only` + 高置信 → 不开浏览器。
 - `mcp_then_browser` / `browser_only` / `wait_confirm=true` → 先成文，征得用户确认后再开。
-- **loadout / mining**：先社区/主流草稿，用户确认后再开 Erkul 等计算器；`leave_open` 时摘要后把页面留给用户。
+- **loadout**：社区主源 = [Erkul Browse](https://erkul.games/browse)；Reddit 可补充但只采**最新**讨论并核对 Live 版本，旧贴勿当现行。先摘要 Browse/最新社区草稿，用户确认后再开 Browse 或 Calculator；`leave_open` 时摘要后把页面留给用户。
+- **mining**：先主流草稿，确认后再开采矿计算站。
 - 搜索词用证据里的**英文标准名**；外搜须含 `星际公民` / `Star Citizen` / `SC`。
 
 ## 成文
