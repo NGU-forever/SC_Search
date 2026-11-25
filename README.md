@@ -97,12 +97,13 @@ cd X:\解压后的目录
 - 「红风 Junior 能接什么任务？」
 - 「本地数据是什么时候同步的？」
 
-编排细节见 [ORCHESTRATION.md](ORCHESTRATION.md)。常见工具对应关系：
+Agent / MCP 默认入口是 **`sc_ask`**（见 [AGENTS.md](AGENTS.md)）。开发说明：[ORCHESTRATION.md](ORCHESTRATION.md)。常见工具对应关系：
 
 | 你想问的 | 大致会用到的工具 |
 | :--- | :--- |
-| 简单事实/物价 | `sc_answer` |
-| 复杂题 | `sc_route` → `sc_worker_run` |
+| 默认事实问答 | `sc_ask` |
+| 简单事实/物价（调试旁路） | `sc_answer` |
+| 复杂题（调试） | `sc_route` → `sc_worker_run` |
 | 最高卖价/最低买价 | `sc_best_prices` |
 | 中英俗称解析 | `sc_resolve_name` |
 | 飞船参数 | `sc_entity_facts` |
