@@ -48,18 +48,18 @@
    - ChatGPT / Codex：写 TOML `mcp_servers`（见 `toml_example`），不要硬套 JSON。
    - ZCode：优先 `.zcode` 的 `mcp.servers`（见 `native_shape`），或设置页粘贴。
    - 豆包等无文件 UI：用 `ui_table` 字段列表格。
-4. 可选自检：`./go/sc-search ingest status` 或短时 STDIO 握手。
+   - **只依赖标准字段**：`command` + `args` + `env`。`cwd` 不是 MCP stdio 契约的一部分，不要写、也不要当作必需。
+4. 可选自检：`./go/sc-search ingest status`；或从任意目录做 STDIO 握手（`command` 用绝对路径，仅设 `SC_SEARCH_DB`）。
 5. 收尾：请用户 **重载 MCP / 新开对话**；需要刷新数据时再说「同步数据」（用包内二进制跑 `sync_all`，仍不必装 Go）。
 
 ### B. 源码开发树（完整路径）
 
 1. **检查 Go**：`go version`；若无 Go，优先引导去 [GitHub Releases](https://github.com/NGU-forever/archangel-mcp/releases) 下对应平台 zip；仅开发才需安装 Go 1.22+。
 2. **构建**：
-   ```bash
-   cd "$ROOT/go" && go build -o sc-search ./cmd/sc-search
-   chmod +x "$ROOT/scripts/"*.sh 2>/dev/null || true
-   ```
-3. **可选 UEX**：若用户要实时物价且尚无 Token，提示打开 [UEX My Apps](https://uexcorp.space/api/apps)，写入 `config/.env`（可从 `config/.env.example` 复制）。**不要编造 Token**；用户说跳过则跳过 `sync uex`。
+```bash
+cd "$ROOT/go" && go build -o sc-search ./cmd/sc-search
+chmod +x "$ROOT/scripts/"*.sh 2>/dev/null || true
+```3. **可选 UEX**：若用户要实时物价且尚无 Token，提示打开 [UEX My Apps](https://uexcorp.space/api/apps)，写入 `config/.env`（可从 `config/.env.example` 复制）。**不要编造 Token**；用户说跳过则跳过 `sync uex`。
 4. **建库并同步**：
    ```bash
    cd "$ROOT" && ./scripts/sync_all.sh
@@ -79,6 +79,8 @@ cd go && go build -o sc-search ./cmd/sc-search
 ./scripts/setup_mcp.sh
 ./scripts/run_mcp.sh
 ```
+
+运行时只需 `command` + `args=mcp` + `SC_SEARCH_DB`（绝对路径）；二进制不再要求 cwd 落在仓库内。
 
 打包发版：`./scripts/package_release.sh`；打 `v*` tag 触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)。  
 Ingest：`./scripts/sync_all.sh` 或 `sc-search ingest …`。说明见 [`go/README.md`](go/README.md)。

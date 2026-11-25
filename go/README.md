@@ -28,14 +28,17 @@ End users: download a GitHub Release zip (binary + SQLite) and run `../scripts/s
 
 Agent「初始化」会读 `config/mcp_config.json`（含 `client_hints`）适配不同宿主。模板：`config/mcp_config.example.json`。
 
-Cursor / client config:
+Cursor / client config（只需 command + args + env；`cwd` 非 MCP 标准字段，不要依赖）：
 
 ```json
 {
   "mcpServers": {
     "sc-search": {
       "command": "/ABS/PATH/SC_Search/go/sc-search",
-      "args": ["mcp"]
+      "args": ["mcp"],
+      "env": {
+        "SC_SEARCH_DB": "/ABS/PATH/SC_Search/data/sc_knowledge.sqlite"
+      }
     }
   }
 }

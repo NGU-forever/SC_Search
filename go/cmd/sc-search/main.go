@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -31,6 +32,17 @@ func main() {
 			fmt.Fprintf(os.Stderr, "sc-search ingest: %v\n", err)
 			os.Exit(1)
 		}
+	case "mcp-config":
+		// Hidden helper for setup_mcp: renders MCP configs with absolute paths.
+		// No Python/Go toolchain needed on the user's machine.
+		if len(os.Args) != 5 {
+			fmt.Fprintf(os.Stderr, "usage: sc-search mcp-config <ROOT> <BIN> <DB>\n")
+			os.Exit(2)
+		}
+		if err := renderMCPConfigs(os.Args[2], os.Args[3], os.Args[4]); err != nil {
+			fmt.Fprintf(os.Stderr, "sc-search mcp-config: %v\n", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		usage()
 	default:
@@ -41,21 +53,31 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: sc-search <mcp|ingest|help>\n")
+	fmt.Fprintf(os.Stderr, "usage: sc-search <mcp|ingest|mcp-config|help>\n")
 	fmt.Fprintf(os.Stderr, "  ingest init            create/apply schema\n")
 	fmt.Fprintf(os.Stderr, "  ingest status          show recent ingest_runs\n")
 	fmt.Fprintf(os.Stderr, "  ingest sync aliases|wiki|localization|uex|scmdb|scw|scw-blueprints\n")
 }
 
 func runMCP() error {
-	root, err := repo.FindRoot("")
-	if err != nil {
-		return err
+	// MCP hosts only guarantee command+args+env; cwd is not part of the stdio
+	// contract, so never require a repo root here. SC_SEARCH_DB is enough, and
+	// a release zip still works with no env at all via its own directory.
+	root, rootErr := repo.FindRoot("")
+	if rootErr != nil {
+		if bin, err := os.Executable(); err == nil {
+			candidate := filepath.Dir(filepath.Dir(bin))
+			if _, statErr := os.Stat(filepath.Join(candidate, "data", "sc_knowledge.sqlite")); statErr == nil {
+				root = candidate
+			}
+		}
 	}
-	query.SetGuidesRoot(root)
+	if root != "" {
+		query.SetGuidesRoot(root)
+	}
 	sqlDB, err := db.Open(root)
 	if err != nil {
-		return fmt.Errorf("open DB: %w (run: sc-search ingest init)", err)
+		return fmt.Errorf("open DB: %w (set SC_SEARCH_DB to data/sc_knowledge.sqlite or run: sc-search ingest init)", err)
 	}
 	defer sqlDB.Close()
 	server := scmcp.NewServer(sqlDB)

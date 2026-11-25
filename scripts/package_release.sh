@@ -113,7 +113,6 @@ cp "$ROOT/config/.env.example" "$STAGE/config/"
 
 cp "$ROOT/scripts/setup_mcp.sh" "$STAGE/scripts/"
 cp "$ROOT/scripts/setup_mcp.ps1" "$STAGE/scripts/"
-cp "$ROOT/scripts/render_mcp_config.py" "$STAGE/scripts/"
 cp "$ROOT/scripts/run_mcp.sh" "$STAGE/scripts/"
 cp "$ROOT/scripts/run_mcp.ps1" "$STAGE/scripts/"
 # Dev-only sync scripts are optional for advanced users refreshing data
