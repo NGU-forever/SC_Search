@@ -274,11 +274,16 @@ func answerCalcIntent(db *sql.DB, question string, plan map[string]any, entities
 			}
 			browser, _ := plan["browser"].(map[string]any)
 			guideLinks := formatGuideLinks(castStringMaps(browser["resources"]), 3)
-			draft = fmt.Sprintf("%s 配装/计算需 %s。%s本地只能给静态参数；Agent 可先据静态参数推理建议，要精确 DPS/破矿模拟再说，确认后打开工具站；打开并摘要后请把浏览器留在会话里（leave_open），方便用户自己继续改。", orLabel(label, primary), site, static)
+			if intent == "loadout_calc" {
+				draft = fmt.Sprintf("%s 改装：先给 Erkul 社区推荐或出厂主流方案（%s本地静态可作对照）。不要一上来开计算器；成文后再问是否打开 Erkul Browse/计算器；用户确认后打开并 leave_open。", orLabel(label, primary), static)
+				followUps = []string{"按社区主流推荐改装", "打开 Erkul 自己改", "只要静态参数", openGuideConfirm}
+			} else {
+				draft = fmt.Sprintf("%s 配装/计算需 %s。%s本地只能给静态参数；Agent 可先据静态参数推理建议，要精确破矿模拟再说，确认后打开工具站；打开并摘要后请把浏览器留在会话里（leave_open），方便用户自己继续改。", orLabel(label, primary), site, static)
+				followUps = []string{"打开 " + site + " 查配装", "只要静态参数", openGuideConfirm}
+			}
 			if guideLinks != "" {
 				draft += "\n参考：\n" + guideLinks
 			}
-			followUps = []string{"打开 " + site + " 查配装", "只要静态参数", openGuideConfirm}
 			detailAvailable = true
 			_ = hadScored
 		}

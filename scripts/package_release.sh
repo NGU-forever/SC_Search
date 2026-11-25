@@ -107,11 +107,13 @@ cp "$DB_SRC" "$STAGE/data/sc_knowledge.sqlite"
 [[ -f "$ROOT/data/seed_aliases.json" ]] && cp "$ROOT/data/seed_aliases.json" "$STAGE/data/"
 [[ -f "$ROOT/data/.gitkeep" ]] && cp "$ROOT/data/.gitkeep" "$STAGE/data/"
 
+cp "$ROOT/config/mcp_config.example.json" "$STAGE/config/"
 cp "$ROOT/config/mcp.cursor.example.json" "$STAGE/config/"
 cp "$ROOT/config/.env.example" "$STAGE/config/"
 
 cp "$ROOT/scripts/setup_mcp.sh" "$STAGE/scripts/"
 cp "$ROOT/scripts/setup_mcp.ps1" "$STAGE/scripts/"
+cp "$ROOT/scripts/render_mcp_config.py" "$STAGE/scripts/"
 cp "$ROOT/scripts/run_mcp.sh" "$STAGE/scripts/"
 cp "$ROOT/scripts/run_mcp.ps1" "$STAGE/scripts/"
 # Dev-only sync scripts are optional for advanced users refreshing data
@@ -127,7 +129,7 @@ cat >"$STAGE/RELEASE.txt" <<EOF
 SC Search ${VERSION} (${GOOS_T}/${GOARCH_T})
 
 解压后任选其一：
-  1) 对 Agent 说「初始化」——只写 MCP 配置，不编译、不同步库
+  1) 对 Agent 说「初始化」——生成 config/mcp_config.json 并按当前客户端适配 MCP；不编译、不同步库
   2) 手动: ./scripts/setup_mcp.sh   (Windows: .\\scripts\\setup_mcp.ps1)
 
 然后在客户端重载 MCP。查实时物价可选填 config/.env 的 UEX_API_TOKEN 后再 sync。

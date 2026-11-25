@@ -58,7 +58,7 @@
 | `mission_rep` | faction, rank, system | `sc_resolve_name`(势力) → `sc_list_missions` → `sc_entity_facts`；**不编造声望点数** | mcp_only |
 | `mission_money` | activity, system, faction | `sc_list_missions` → resolve → `sc_entity_facts` →（可选）`sc_answer`；站点池可用 `sc_locations` | mcp_only |
 | `blueprint` / `crafting` | item, blueprint | `sc_answer` → resolve（偏 blueprint）→ `sc_entity_facts`；矿点未收录则明说 | mcp_only |
-| `loadout` | ship | 静态：`sc_answer` / resolve / `sc_entity_facts`；要 DPS/配装结果再 Erkul | mcp_then_browser |
+| `loadout` | ship | 静态 → **先** Erkul 社区推荐/主流成文 → **再问**是否开计算器；禁止一上来就开交互页 | mcp_then_browser |
 | `mining` | ship, laser | 静态同上；确认后再开 mining guides | mcp_then_browser |
 | `bug_tip` / `client_help` | topic | `sc_search_docs`（+ 可读本地 tips）；不足再外链，确认后打开 | mcp_then_browser |
 | `howto` | topic | `sc_search_docs` / `sc_answer` + howto guides | mcp_then_browser |
@@ -137,6 +137,29 @@ path / confidence 门禁
 | 禁止 | `/auth`、`/settings`；未写明另开第二站；中文俗称当 Erkul 搜索词；把搜索页内容编成库内数值 |
 | 降级 | 超时/失败 → 用已有 MCP 证据答静态部分，标明未取到；若已开且 `leave_open` 仍留给用户 |
 | 宿主 | 优先会话内可展示给用户的预览浏览器，否则 `ego-browser` |
+
+### `loadout` 专项（改装 / 配装）
+
+```text
+MCP 静态（resolve / facts）
+   │
+   ▼
+取主流配置证据（不先开 Erkul 计算器交互页）
+   · 优先：Erkul Browse / 社区推荐（能非交互抓取则抓；否则用可信数据站出厂/主流对照）
+   · 禁止：把「推荐改装」当成立即 leave_open 开计算器的许可
+   │
+   ▼
+成文：1 套主流方案 + 可选变体；标明 Live 版本与来源
+   │
+   ▼
+follow_up 询问：是否打开 Erkul 计算器自行改 / 看完整社区列表
+   │
+   └─ 用户确认后 → start_url + search_term（英文标准名）→ leave_open
+```
+
+- 用户只要「主流/推荐改装」→ 先答社区或出厂主流，**不要**主动开页。
+- 用户明确说「打开 Erkul / 算 DPS / 自己改」→ 才开浏览器。
+- 社区列表抓不到时：用出厂主流 + 数据站对照成文，并说明「完整社区推荐需打开 Erkul Browse」。
 
 ---
 

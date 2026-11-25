@@ -13,9 +13,11 @@ data/*.sqlite
 data/raw/
 .DS_Store
 
-# Local MCP configs with machine absolute paths (templates: config/mcp.cursor.example.json)
+# Local MCP configs with machine absolute paths
+# Templates: config/mcp_config.example.json, config/mcp.cursor.example.json
 .cursor/
 .mcp.json
+config/mcp_config.json
 
 # Go MCP binary (built by scripts/run_mcp.sh or `go build`)
 go/sc-search

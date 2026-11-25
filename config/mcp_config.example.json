@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "description": "SC Search MCP 权威描述。运行 scripts/setup_mcp.sh|ps1 后生成带本机绝对路径的 config/mcp_config.json；Agent「初始化」读取该文件，按当前宿主匹配 client_hints 写入或展示。路径含 ~ 时展开为用户主目录；Windows 将 Library/Application Support 换为 %APPDATA%。",
+  "server": {
+    "name": "sc-search",
+    "transport": "stdio",
+    "command": "/绝对路径/SC_Search/go/sc-search",
+    "args": ["mcp"],
+    "cwd": "/绝对路径/SC_Search",
+    "env": {
+      "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite"
+    }
+  },
+  "mcpServers": {
+    "sc-search": {
+      "command": "/绝对路径/SC_Search/go/sc-search",
+      "args": ["mcp"],
+      "cwd": "/绝对路径/SC_Search",
+      "env": {
+        "SC_SEARCH_DB": "/绝对路径/SC_Search/data/sc_knowledge.sqlite"
+      }
+    }
+  },
+  "client_hints": {
+    "cursor": {
+      "aliases": ["Cursor"],
+      "format": "mcpServers",
+      "write_paths": [".mcp.json", ".cursor/mcp.json"],
+      "global_paths": ["~/.cursor/mcp.json"],
+      "note": "setup_mcp 已写入项目级；请用户重载 MCP / 新开对话"
+    },
+    "claude_code": {
+      "aliases": ["Claude Code", "claude"],
+      "format": "mcpServers",
+      "write_paths": [".mcp.json"],
+      "global_paths": ["~/.claude.json"],
+      "note": "项目优先写 .mcp.json；也可合并进用户 ~/.claude.json 的 mcpServers"
+    },
+    "claude_desktop": {
+      "aliases": ["Claude Desktop", "Claude App"],
+      "format": "mcpServers",
+      "write_paths": [],
+      "global_paths": [
+        "~/Library/Application Support/Claude/claude_desktop_config.json",
+        "%APPDATA%/Claude/claude_desktop_config.json"
+      ],
+      "note": "合并 mcpServers.sc-search 进 Claude Desktop 配置后重启应用；仅 STDIO"
+    },
+    "chatgpt": {
+      "aliases": ["ChatGPT", "ChatGPT Desktop", "Codex", "OpenAI Codex"],
+      "format": "codex_toml",
+      "write_paths": [".codex/config.toml"],
+      "global_paths": ["~/.codex/config.toml"],
+      "toml_example": "[mcp_servers.sc-search]\ncommand = \"<server.command>\"\nargs = [\"mcp\"]\nenv = { SC_SEARCH_DB = \"<server.env.SC_SEARCH_DB>\" }",
+      "note": "ChatGPT 桌面 / Codex CLI / IDE 共用 Codex 配置；写 TOML mcp_servers 段，勿当 JSON mcpServers 硬塞"
+    },
+    "deepseek": {
+      "aliases": ["DeepSeek", "DeepSeek TUI", "DeepSeek Code"],
+      "format": "servers_or_mcpServers",
+      "write_paths": [],
+      "global_paths": ["~/.deepseek/mcp.json"],
+      "note": "可用 servers 或兼容 mcpServers；改完重启 DeepSeek 客户端。若宿主实际是 Codex 壳，改走 chatgpt/codex 提示"
+    },
+    "kimi": {
+      "aliases": ["Kimi", "Kimi Code", "月之暗面"],
+      "format": "mcpServers",
+      "write_paths": [".kimi-code/mcp.json"],
+      "global_paths": ["~/.kimi-code/mcp.json"],
+      "note": "项目级需先信任目录；整文件校验失败会导致全部 MCP 停用，合并时保持 JSON 合法"
+    },
+    "zcode": {
+      "aliases": ["ZCode", "z.ai ZCode"],
+      "format": "zcode_mcp_servers",
+      "write_paths": [".zcode/config.json", ".agents/mcp.json"],
+      "global_paths": ["~/.zcode/cli/config.json", "~/.agents/mcp.json"],
+      "native_shape": {
+        "mcp": {
+          "servers": {
+            "sc-search": {
+              "command": "<server.command>",
+              "args": ["mcp"],
+              "env": {
+                "SC_SEARCH_DB": "<server.env.SC_SEARCH_DB>"
+              }
+            }
+          }
+        }
+      },
+      "note": "优先写 .zcode 的 mcp.servers；同作用域有 .zcode 时会忽略 .agents。也可设置 → MCP 服务器用表单/JSON 粘贴 mcpServers"
+    },
+    "antigravity": {
+      "aliases": ["Antigravity", "Google Antigravity"],
+      "format": "mcpServers",
+      "write_paths": [],
+      "global_paths": [
+        "~/.gemini/config/mcp_config.json",
+        "~/.gemini/antigravity/mcp_config.json"
+      ],
+      "note": "Antigravity / IDE / CLI 共用 Gemini 侧 mcp_config；写入 mcpServers 后重载。若路径不存在，用 present_server 让用户在设置里粘贴"
+    },
+    "doubao": {
+      "aliases": ["豆包", "豆包工作", "Doubao"],
+      "format": "ui_table",
+      "write_paths": [],
+      "fields": {
+        "服务器名称": "sc-search",
+        "传输类型": "STDIO",
+        "命令": "<server.command>",
+        "参数": "mcp",
+        "环境变量": "SC_SEARCH_DB=<server.env.SC_SEARCH_DB>"
+      },
+      "note": "自定义连接器选「本地电脑」；无法写 UI 时用表格列出绝对路径"
+    },
+    "vscode": {
+      "aliases": ["VS Code", "GitHub Copilot"],
+      "format": "mcpServers",
+      "write_paths": [".vscode/mcp.json"],
+      "global_paths": [
+        "~/Library/Application Support/Code/User/mcp.json",
+        "%APPDATA%/Code/User/mcp.json"
+      ],
+      "note": "Copilot / VS Code MCP；项目写 .vscode/mcp.json"
+    },
+    "windsurf": {
+      "aliases": ["Windsurf", "Codeium"],
+      "format": "mcpServers",
+      "write_paths": [],
+      "global_paths": ["~/.codeium/windsurf/mcp_config.json"],
+      "note": "写入 mcpServers 后重启 Windsurf"
+    },
+    "unknown": {
+      "aliases": [],
+      "format": "present_server",
+      "write_paths": [],
+      "note": "识别不了宿主时：展示 server 块 + 询问该客户端的 MCP 配置入口，再代写或口述；优先尝试通用 mcpServers JSON"
+    }
+  }
+}

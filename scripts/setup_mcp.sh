@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Wire MCP configs for a ready tree (Release zip or already-built checkout).
 # Does NOT build Go and does NOT sync/write the knowledge DB.
+# Writes: config/mcp_config.json (from example + absolute paths), .mcp.json, .cursor/mcp.json
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,31 +25,16 @@ if [[ ! -f "$DB" ]]; then
   exit 1
 fi
 
-write_mcp_json() {
-  local dest="$1"
-  mkdir -p "$(dirname "$dest")"
-  cat >"$dest" <<EOF
-{
-  "mcpServers": {
-    "sc-search": {
-      "command": "$BIN",
-      "args": ["mcp"],
-      "cwd": "$ROOT",
-      "env": {
-        "SC_SEARCH_DB": "$DB"
-      }
-    }
-  }
-}
-EOF
-  echo "已写入 $dest"
-}
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "需要 python3 以渲染 config/mcp_config.json" >&2
+  exit 1
+fi
 
-write_mcp_json "$ROOT/.mcp.json"
-write_mcp_json "$ROOT/.cursor/mcp.json"
+python3 "$ROOT/scripts/render_mcp_config.py" "$ROOT" "$BIN" "$DB"
 
 echo ""
 echo "就绪（未编译、未改库）。请在客户端重载 MCP / 新开对话后再提问。"
+echo "  权威配置: $ROOT/config/mcp_config.json"
+echo "  客户端 hints: cursor / claude_code / claude_desktop / chatgpt / deepseek / kimi / zcode / antigravity / doubao / …"
 echo "  二进制: ${BIN}"
 echo "  数据库: ${DB}"
-echo "豆包等工作端: STDIO, command=${BIN}, args=mcp, SC_SEARCH_DB=${DB}"

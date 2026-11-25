@@ -125,6 +125,11 @@
   ],
   "loadout": [
     {
+      "title": "Erkul Browse（社区推荐配装）",
+      "url": "https://erkul.games/browse",
+      "kind": "tool"
+    },
+    {
       "title": "Erkul Calculator",
       "url": "https://erkul.games/calculator",
       "kind": "tool"

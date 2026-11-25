@@ -23,8 +23,10 @@ End users: download a GitHub Release zip (binary + SQLite) and run `../scripts/s
 ./go/sc-search mcp
 # or
 ./scripts/run_mcp.sh
-./scripts/setup_mcp.sh   # write .mcp.json / .cursor/mcp.json only
+./scripts/setup_mcp.sh   # write config/mcp_config.json + .mcp.json / .cursor/mcp.json
 ```
+
+Agent「初始化」会读 `config/mcp_config.json`（含 `client_hints`）适配不同宿主。模板：`config/mcp_config.example.json`。
 
 Cursor / client config:
 

@@ -128,7 +128,7 @@
         "sc_entity_facts"
       ],
       "path": "mcp_then_browser",
-      "notes": "先静态 facts；用户要 DPS/配装结果再开 Erkul（search_term 用英文标准名）"
+      "notes": "先静态 facts；再取 Erkul 社区推荐/主流成文；仅用户确认后开计算器（search_term 英文标准名）；禁止一听改装就 leave_open"
     },
     "mining": {
       "slots": [

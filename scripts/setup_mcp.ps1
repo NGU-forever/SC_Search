@@ -1,5 +1,6 @@
 # Wire MCP configs for a ready tree (Release zip or already-built checkout).
 # Does NOT build Go and does NOT sync/write the knowledge DB.
+# Writes: config/mcp_config.json (from example + absolute paths), .mcp.json, .cursor/mcp.json
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $Root
@@ -19,36 +20,22 @@ if (-not (Test-Path $Db)) {
   Write-Error "缺少数据库: $Db。Release 包应自带；开发树请先 .\scripts\sync_all.ps1"
 }
 
-function Write-McpJson([string]$Dest) {
-  $dir = Split-Path -Parent $Dest
-  if ($dir -and -not (Test-Path $dir)) {
-    New-Item -ItemType Directory -Path $dir | Out-Null
-  }
-  $binJson = $Bin -replace '\\', '/'
-  $rootJson = $Root -replace '\\', '/'
-  $dbJson = $Db -replace '\\', '/'
-  @"
-{
-  "mcpServers": {
-    "sc-search": {
-      "command": "$binJson",
-      "args": ["mcp"],
-      "cwd": "$rootJson",
-      "env": {
-        "SC_SEARCH_DB": "$dbJson"
-      }
-    }
-  }
+$Py = Get-Command python3 -ErrorAction SilentlyContinue
+if (-not $Py) {
+  $Py = Get-Command python -ErrorAction SilentlyContinue
 }
-"@ | Set-Content -Path $Dest -Encoding utf8
-  Write-Host "已写入 $Dest"
+if (-not $Py) {
+  Write-Error "需要 python3/python 以渲染 config/mcp_config.json"
 }
 
-Write-McpJson (Join-Path $Root ".mcp.json")
-Write-McpJson (Join-Path $Root ".cursor\mcp.json")
+& $Py.Source (Join-Path $Root "scripts\render_mcp_config.py") $Root $Bin $Db
+if ($LASTEXITCODE -ne 0) {
+  Write-Error "render_mcp_config.py failed with exit $LASTEXITCODE"
+}
 
 Write-Host ""
 Write-Host "就绪（未编译、未改库）。请在客户端重载 MCP / 新开对话后再提问。"
+Write-Host "  权威配置: $(Join-Path $Root 'config\mcp_config.json')"
+Write-Host "  客户端 hints: cursor / claude_code / claude_desktop / chatgpt / deepseek / kimi / zcode / antigravity / doubao / …"
 Write-Host "  二进制: $Bin"
 Write-Host "  数据库: $Db"
-Write-Host "豆包等工作端：STDIO，命令=$Bin，参数=mcp，环境变量 SC_SEARCH_DB=$Db"

@@ -92,7 +92,7 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 			"intent": "loadout_calc", "path": "mcp_then_browser", "confidence": conf,
 			"entities": entities, "mcp_steps": steps, "browser": browserErkul(searchTerm),
 			"stop_if": "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
-			"reason":  "配装/DPS 需 Erkul；库无实时计算",
+			"reason":  "改装先社区主流成文；确认后再开 Erkul 计算器",
 		}, nil
 	}
 
@@ -617,11 +617,19 @@ func dedupeResources(rows []map[string]string) []map[string]string {
 
 func browserErkul(searchTerm string) map[string]any {
 	resources := dedupeResources(GuidesFor("loadout", 3))
+	// Prefer community browse as first resource; calculator opens only after confirm.
+	start := erkulCalculator
+	for _, r := range resources {
+		if r["url"] == "https://erkul.games/browse" {
+			start = r["url"]
+			break
+		}
+	}
 	return map[string]any{
-		"needed": true, "site": "erkul", "start_url": erkulCalculator,
+		"needed": true, "site": "erkul", "start_url": start,
 		"search_term": searchTerm, "resources": resources, "max_actions": 8,
-		"extract": []any{"selected ship", "DPS summary", "shield / power notes"},
-		"do_not": []any{"open /auth", "/settings", "wander other sites first"},
+		"extract": []any{"community recommended loadout", "selected ship", "DPS summary", "shield / power notes"},
+		"do_not": []any{"open /auth", "/settings", "wander other sites first", "open calculator before community answer unless user confirmed"},
 		"wait_confirm": true, "leave_open": true, "handoff_to_user": true,
 	}
 }

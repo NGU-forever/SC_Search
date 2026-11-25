@@ -11,6 +11,7 @@
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
 - 库无字段不编造；Erkul 等交互站在 `leave_open` 时摘要后把页面留给用户继续改。
+- **改装 `loadout`**：先社区推荐/主流成文，再问是否开 Erkul；禁止一听「改装」就开计算器。
 
 ---
 
@@ -39,8 +40,14 @@
    cd "$ROOT" && ./scripts/setup_mcp.sh
    # Windows: .\scripts\setup_mcp.ps1
    ```
-   脚本只写入 `.mcp.json` 与 `.cursor/mcp.json`（绝对路径），**不编译、不改库**。
-3. **豆包等工作端**：无法写 UI 时，用表格列出：名称 `sc-search`、STDIO、命令=`<ROOT>/go/sc-search`、参数=`mcp`、环境变量 `SC_SEARCH_DB=<ROOT>/data/sc_knowledge.sqlite`。
+   脚本写入 **`config/mcp_config.json`**（权威、含本机绝对路径 + `client_hints`），并顺带写 `.mcp.json` / `.cursor/mcp.json`。**不编译、不改库**。模板见 [`config/mcp_config.example.json`](config/mcp_config.example.json)。
+3. **按当前客户端适配 MCP**（宿主各异，禁止假设人人都用 Cursor）：
+   - 读取 `$ROOT/config/mcp_config.json`（由 example 渲染；hints 含 cursor / claude_code / claude_desktop / chatgpt·Codex / deepseek / kimi / zcode / antigravity / doubao / vscode / windsurf 等）。
+   - 用 `client_hints.<key>.aliases` 匹配当前宿主；对得上则按 `format` + `write_paths`/`global_paths` 写入或展示；对不上用 `unknown`。
+   - JSON `mcpServers` 形（Cursor / Claude / Kimi / Antigravity 等）：合并 `sc-search` 条目，**绝对路径**。
+   - ChatGPT / Codex：写 TOML `mcp_servers`（见 `toml_example`），不要硬套 JSON。
+   - ZCode：优先 `.zcode` 的 `mcp.servers`（见 `native_shape`），或设置页粘贴。
+   - 豆包等无文件 UI：用 `ui_table` 字段列表格。
 4. 可选自检：`./go/sc-search ingest status` 或短时 STDIO 握手。
 5. 收尾：请用户 **重载 MCP / 新开对话**；需要刷新数据时再说「同步数据」（用包内二进制跑 `sync_all`，仍不必装 Go）。
 
@@ -58,10 +65,10 @@
    cd "$ROOT" && ./scripts/sync_all.sh
    # Windows: .\scripts\sync_all.ps1
    ```
-5. **写入 MCP**：优先 `./scripts/setup_mcp.sh`（同上绝对路径规则）。
+5. **写入 MCP**：优先 `./scripts/setup_mcp.sh`，再读 `config/mcp_config.json` 按当前客户端适配（同 A.3）。
 6. 自检与收尾同 A。
 
-禁止：在未就绪时假装 MCP 已可用；把相对路径写进 mcp.json；Release 树上仍去装 Go / 重同步；要求用户手动抄一长串命令却自己能跑终端。
+禁止：在未就绪时假装 MCP 已可用；把相对路径写进 mcp / `mcp_config`；Release 树上仍去装 Go / 重同步；要求用户手动抄一长串命令却自己能跑终端；假定所有用户同一套 Agent/客户端配置路径。
 
 ### MCP 运行时（Go）
 

@@ -48,7 +48,7 @@ README.md
 初始化
 ```
 
-3. Agent 只会运行 `setup_mcp` 写入 MCP 绝对路径，**不会编译、不会重写数据库**。
+3. Agent 运行 `setup_mcp`，生成 [`config/mcp_config.json`](config/mcp_config.example.json)（本机绝对路径 + 各客户端 hints），并按**当前** AI 客户端自行写入/展示 MCP；**不会编译、不会重写数据库**。
 4. 按提示 **重载 MCP** 或新开对话，即可提问。
 
 #### 方式 B：手动脚本（无 Agent 时）
@@ -132,7 +132,7 @@ cp config/.env.example config/.env
 | :--- | :--- |
 | 电脑 | macOS / Windows / Linux |
 | Go | **普通用户不需要**；仅从源码开发时要 1.22+ |
-| AI 客户端 | [豆包](https://www.doubao.com/) / Cursor / Claude Code 等支持本地 STDIO MCP 的客户端 |
+| AI 客户端 | 豆包 / Cursor / Claude / ChatGPT·Codex / DeepSeek / Kimi / ZCode / Antigravity 等支持本地 STDIO MCP 的客户端（见 `config/mcp_config.example.json` 的 `client_hints`） |
 | UEX（可选） | 包内已有物价快照；要自己刷实时价再配 Token |
 
 ---
