@@ -1,8 +1,10 @@
 # SC Search — 问答编排（ORCHESTRATION）
 
-由 [AGENTS.md](AGENTS.md) 引用的完整流水线。事实数据优先走本地 MCP **`sc-search`**（Go：`./scripts/run_mcp.sh` → `go/sc-search mcp`）；浏览器只作确认后的补充，不是默认第一步。
+> **开发者说明 / 非运行时真相源。** Agent 运行时默认调用 **`sc_ask`**（Go 状态机：`go/internal/orchestrate`）。完整设计见 [`docs/state_machine_orchestration_design.md`](docs/state_machine_orchestration_design.md)。下文保留剧本表与浏览器门禁说明，供调试细粒度 `sc_route` / `sc_worker_run` 时对照。
 
-机器可读检索契约：[`go/internal/router/intent_tools.json`](go/internal/router/intent_tools.json)（与下文剧本表 / `sc_intents` 保持一致）。
+事实数据优先走本地 MCP **`sc-search`**（Go：`./scripts/run_mcp.sh` → `go/sc-search mcp`）；浏览器只作确认后的补充，不是默认第一步。
+
+机器可读检索契约：[`go/internal/router/intent_tools.json`](go/internal/router/intent_tools.json)（与下文剧本表 / `sc_intents` 保持一致）。默认入口：`sc_ask`（`sc_intents.default_entry`）。
 
 ---
 

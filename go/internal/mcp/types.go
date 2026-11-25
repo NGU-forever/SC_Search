@@ -71,3 +71,12 @@ type WorkerRunIn struct {
 	Plan     map[string]any `json:"plan,omitempty" jsonschema:"DAG plan object from sc_route data"`
 	PlanJSON string         `json:"plan_json,omitempty" jsonschema:"Optional JSON string form of plan (legacy)"`
 }
+
+type AskIn struct {
+	Question    string         `json:"question" jsonschema:"User question"`
+	Primary     string         `json:"primary,omitempty" jsonschema:"Optional primary override"`
+	Slots       map[string]any `json:"slots,omitempty" jsonschema:"Optional slot overrides"`
+	SlotsJSON   string         `json:"slots_json,omitempty" jsonschema:"Legacy JSON string form of slots"`
+	DetailLevel string         `json:"detail_level,omitempty" jsonschema:"brief (default) or full"`
+	TraceLevel  string         `json:"trace_level,omitempty" jsonschema:"none, compact (default), or full"`
+}

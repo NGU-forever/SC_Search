@@ -386,7 +386,8 @@ func shouldDeferAnswerToRoute(question, intent string) bool {
 	return true
 }
 
-func intentToSuggestedPrimary(intent string) string {
+// IntentToSuggestedPrimary maps sc_answer / QueryPlan intents onto Router primaries.
+func IntentToSuggestedPrimary(intent string) string {
 	switch intent {
 	case "mission_list":
 		return "mission_money"
@@ -402,13 +403,21 @@ func intentToSuggestedPrimary(intent string) string {
 		return intent
 	case "docs":
 		return "lore_docs"
+	case "facts":
+		return "ship_stats"
+	case "ship_shop":
+		return "ship_buy"
 	default:
 		return "other"
 	}
 }
 
+func intentToSuggestedPrimary(intent string) string {
+	return IntentToSuggestedPrimary(intent)
+}
+
 func answerDeferToRoute(plan map[string]any, intent, live string) map[string]any {
-	primary := intentToSuggestedPrimary(intent)
+	primary := IntentToSuggestedPrimary(intent)
 	draft := fmt.Sprintf(
 		"此题超出 sc_answer 旁路范围（多槽/机制字段），请改用 sc_route → sc_worker_run（建议 primary=%s）。",
 		primary,

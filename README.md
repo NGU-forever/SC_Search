@@ -195,6 +195,7 @@ chmod +x scripts/*.sh
 
 - Agent 入口：[`AGENTS.md`](AGENTS.md)
 - 问答编排：[`ORCHESTRATION.md`](ORCHESTRATION.md)
+- Go 状态机编排设计：[`docs/state_machine_orchestration_design.md`](docs/state_machine_orchestration_design.md)
 - Go 说明：[`go/README.md`](go/README.md)
 - 站点清单：[`SOURCES.md`](SOURCES.md)
 - 测试：`cd go && go test ./...`

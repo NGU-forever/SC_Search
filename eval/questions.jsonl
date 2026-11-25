@@ -1,0 +1,20 @@
+{"question":"Carrack 载货量和厂家？","expected_primary":"ship_stats","must_contain":["456","Anvil"],"must_not_browse":true}
+{"question":"卡拉克货舱多大","expected_primary":"ship_stats","must_contain":["456"],"must_not_browse":true}
+{"question":"黄金哪里卖最贵","expected_primary":"trade","must_not_browse":true}
+{"question":"流星改装方案","expected_primary":"loadout","must_wait_confirm":true}
+{"question":"RSI Meteor loadout","expected_primary":"loadout","must_wait_confirm":true}
+{"question":"本地数据是什么时候同步的？","expected_primary":"other","must_not_browse":true}
+{"question":"Bit Zeros ship heist 手续费和冷却","expected_primary":"mission_money","must_not_contain":["请改用 sc_route"]}
+{"question":"红风 Junior 能接什么任务","expected_primary":"mission_rep","must_not_browse":true}
+{"question":"大白鲨是哪艘船","expected_primary":"ship_stats","must_not_browse":true}
+{"question":"Quantanium 哪里买便宜","expected_primary":"trade","must_not_browse":true}
+{"question":"怎么采矿配激光","expected_primary":"mining","must_wait_confirm":true}
+{"question":"萌新怎么赚钱开荒","expected_primary":"earn_meta","must_not_browse":false}
+{"question":"汉化进不去游戏怎么办","expected_primary":"client_help","must_wait_confirm":true}
+{"question":"CCU 是什么","expected_primary":"pledge_meta","must_wait_confirm":true}
+{"question":"Invictus 活动怎么玩","expected_primary":"event_guide","must_wait_confirm":true}
+{"question":"Carrack 在哪买","expected_primary":"ship_buy","must_wait_confirm":true}
+{"question":"视差步枪是什么","expected_primary":"other","must_not_browse":true}
+{"question":"当前 Live 版本","expected_primary":"other","must_contain":["4."],"must_not_browse":true}
+{"question":"zzz_not_a_real_sc_entity_qqq 参数","must_not_contain":["DPS 99999"],"must_not_browse":true}
+{"question":"黄金在 Area18 什么价","expected_primary":"trade","must_not_browse":true}

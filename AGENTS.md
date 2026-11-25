@@ -2,16 +2,15 @@
 
 本工作区默认在 **《星际公民》（Star Citizen / SC）** 语境下工作。
 
-回答事实类问题前，**必须先阅读并按** [ORCHESTRATION.md](ORCHESTRATION.md) **执行**（Router → Worker → 成文 → 可选浏览器；单实体静态度/价可旁路 `sc_answer`）。机器可读检索契约见 [`go/internal/router/intent_tools.json`](go/internal/router/intent_tools.json)（与 `sc_intents` 一致）。
+事实题默认调用 MCP **`sc_ask(question=用户原话)`**（服务端状态机：分类 → 旁路/route+worker → 最多 1 次回退 → 成文 + 浏览器门禁）。用返回的 `answer_draft` / `answer_blocks` 成文；`browser.wait_confirm=true` 时先征得用户确认。细粒度 `sc_route` / `sc_worker_run` / `sc_answer` 仅调试或显式覆盖。开发说明见 [ORCHESTRATION.md](ORCHESTRATION.md)（**非运行时真相源**）与 [`docs/state_machine_orchestration_design.md`](docs/state_machine_orchestration_design.md)。
 
 硬约束摘要：
 
-- 事实优先本地 MCP **`sc-search`**；禁止先空搜 / 先开 Erkul 再查库。
-- 复杂题：定 `primary`+slots → `sc_route` → `sc_worker_run`；`replan_suggested` 改意图，`slot_retry_suggested` 改检索词；各最多再规划 1 次。合法 primary 见 `sc_intents`。
+- 事实优先本地 MCP **`sc-search`** / **`sc_ask`**；禁止先空搜 / 先开 Erkul 再查库。
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
 - 库无字段不编造；Erkul 等交互站在 `leave_open` 时摘要后把页面留给用户继续改。
-- **改装 `loadout`**：先社区推荐/主流成文，再问是否开 Erkul；禁止一听「改装」就开计算器。
+- **改装 `loadout`**：先看 `sc_ask` 草稿；再问是否开 Erkul；禁止一听「改装」就开计算器。
 
 ---
 

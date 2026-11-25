@@ -1,4 +1,5 @@
 {
+  "default_entry": "sc_ask",
   "primaries": [
     "trade",
     "ship_stats",

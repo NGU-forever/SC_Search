@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/frankxiong/sc-search/internal/orchestrate"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/router"
 	"github.com/frankxiong/sc-search/internal/worker"
@@ -221,8 +222,58 @@ func NewServer(db *sql.DB) *mcp.Server {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
+		Name:        "sc_ask",
+		Description: "Default one-shot Star Citizen entry: classify, route, execute local evidence tools, retry once when safe, and return a Chinese draft plus browser gate.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input AskIn) (*mcp.CallToolResult, map[string]any, error) {
+		if db == nil {
+			return requireDB()
+		}
+		slots := map[string]any{}
+		if input.Slots != nil {
+			slots = input.Slots
+		} else if strings.TrimSpace(input.SlotsJSON) != "" {
+			if err := json.Unmarshal([]byte(input.SlotsJSON), &slots); err != nil {
+				return envResult(errEnv("slots_json must be a JSON object"), true)
+			}
+		}
+		detail := input.DetailLevel
+		if detail == "" {
+			detail = "brief"
+		}
+		trace := input.TraceLevel
+		if trace == "" {
+			trace = "compact"
+		}
+		res := orchestrate.Ask(ctx, db, orchestrate.AskInput{
+			Question:    input.Question,
+			Primary:     input.Primary,
+			Slots:       slots,
+			DetailLevel: detail,
+			TraceLevel:  trace,
+		})
+		body := map[string]any{
+			"ok":            res.OK,
+			"status":        res.Status,
+			"primary":       res.Primary,
+			"slots":         res.Slots,
+			"path":          res.Path,
+			"answer_draft":  res.AnswerDraft,
+			"answer_blocks": res.AnswerBlocks,
+			"evidence":      res.Evidence,
+			"meta":          res.Meta,
+			"browser":       res.Browser,
+			"follow_ups":    res.FollowUps,
+			"trace":         res.Trace,
+		}
+		if res.Error != nil {
+			body["error"] = res.Error
+		}
+		return envResult(okEnv(body, map[string]any{"default_entry": "sc_ask"}), !res.OK && res.Status == "failed")
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
 		Name:        "sc_answer",
-		Description: "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape). Complex multi-slot questions set route_required.",
+		Description: "One-shot: classify + local DB fetch + short Chinese draft (no Erkul scrape). Complex multi-slot questions set route_required. Prefer sc_ask for default Q&A.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input AnswerIn) (*mcp.CallToolResult, map[string]any, error) {
 		if db == nil {
 			return requireDB()
@@ -246,7 +297,8 @@ func NewServer(db *sql.DB) *mcp.Server {
 		if err != nil {
 			return envResult(errEnv(err.Error()), true)
 		}
-		return envResult(okEnv(data, map[string]any{}), false)
+		data["default_entry"] = "sc_ask"
+		return envResult(okEnv(data, map[string]any{"default_entry": "sc_ask"}), false)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
