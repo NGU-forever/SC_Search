@@ -123,6 +123,11 @@ func missionFilters(db *sql.DB, faction, system string) (where string, args []an
 
 // ListMissions returns missions matching filters (default limit 50) plus total/truncated.
 func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) (MissionList, error) {
+	return ListMissionsOpts(db, faction, rankKeyword, system, limit, false)
+}
+
+// ListMissionsOpts is ListMissions with optional fee-first ordering for mission_money.
+func ListMissionsOpts(db *sql.DB, faction, rankKeyword, system string, limit int, preferFee bool) (MissionList, error) {
 	if limit <= 0 {
 		limit = DefaultMissionLimit
 	}
@@ -135,15 +140,19 @@ func ListMissions(db *sql.DB, faction, rankKeyword, system string, limit int) (M
 		tokens = RankKeywordTokens(rankKeyword, faction)
 	}
 
+	orderBy := " ORDER BY fr.value_num DESC NULLS LAST"
+	if preferFee {
+		// Surface buy-in / fee rows even when reward_uec is null.
+		orderBy = " ORDER BY CASE WHEN fcost.value_num IS NOT NULL THEN 0 ELSE 1 END, COALESCE(fcost.value_num, 0) DESC, fr.value_num DESC NULLS LAST"
+	}
+
 	sqlText := missionSelectSQL + where
 	queryArgs := append([]any{}, args...)
 	if len(tokens) == 0 {
-		sqlText += " ORDER BY fr.value_num DESC NULLS LAST LIMIT ?"
-		// Fetch limit+1 to detect truncation without a separate COUNT when cheap;
-		// still run COUNT for accurate total.
+		sqlText += orderBy + " LIMIT ?"
 		queryArgs = append(queryArgs, limit)
 	} else {
-		sqlText += " ORDER BY fr.value_num DESC NULLS LAST"
+		sqlText += orderBy
 	}
 
 	total, err := countMissions(db, where, args)

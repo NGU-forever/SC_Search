@@ -125,6 +125,12 @@ func ExpandDAG(question, primary string, slots map[string]any, replanCount int) 
 			needs = []string{}
 			args = argsFor(tool, cleaned, question, "")
 		}
+		if tool == "sc_list_missions" && key == "mission_money" {
+			args["prefer_fee"] = true
+			if args["limit"] == nil {
+				args["limit"] = 80
+			}
+		}
 		if tool == "sc_list_missions" && key == "earn_meta" &&
 			args["faction"] == nil && args["rank_keyword"] == nil && args["system"] == nil {
 			continue

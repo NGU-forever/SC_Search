@@ -148,6 +148,7 @@ type State struct {
 	RetryKind      string // replan | slot_retry | ""
 	Trace          []TraceEvent
 
+	projDraft string // internal projector draft between buildBlocks and buildDraft
 	startedAt time.Time
 }
 

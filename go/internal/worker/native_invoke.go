@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/frankxiong/sc-search/internal/query"
 )
@@ -93,7 +94,8 @@ func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bo
 		rank, _ := args["rank_keyword"].(string)
 		system, _ := args["system"].(string)
 		limit := argInt(args["limit"], query.DefaultMissionLimit)
-		list, err := query.ListMissions(db, faction, rank, system, limit)
+		preferFee := argBool(args["prefer_fee"], false)
+		list, err := query.ListMissionsOpts(db, faction, rank, system, limit, preferFee)
 		if err != nil {
 			return errEnv(err), true
 		}
@@ -190,6 +192,29 @@ func argInt(v any, fallback int) int {
 		return int(t)
 	case float64:
 		return int(t)
+	default:
+		return fallback
+	}
+}
+
+func argBool(v any, fallback bool) bool {
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		switch strings.ToLower(strings.TrimSpace(t)) {
+		case "1", "true", "yes", "y":
+			return true
+		case "0", "false", "no", "n":
+			return false
+		}
+		return fallback
+	case int:
+		return t != 0
+	case int64:
+		return t != 0
+	case float64:
+		return t != 0
 	default:
 		return fallback
 	}

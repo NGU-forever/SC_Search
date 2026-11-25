@@ -50,8 +50,21 @@ func buildBlocks(st *State) {
 		}
 	}
 
+	proj, hasProj := projectFor(st)
 	facts := []FactBlock{}
-	if st.Answer != nil {
+	if hasProj {
+		facts = append(facts, proj.Facts...)
+		for _, m := range proj.Missing {
+			blocks.Missing = appendUnique(blocks.Missing, m)
+		}
+		for _, w := range proj.Warnings {
+			blocks.Warnings = appendUnique(blocks.Warnings, w)
+		}
+		if proj.Headline != "" {
+			blocks.Headline = proj.Headline
+		}
+		st.projDraft = proj.Draft
+	} else if st.Answer != nil {
 		if ev, ok := st.Answer["evidence"].(map[string]any); ok {
 			for _, f := range asMaps(ev["facts"]) {
 				label := asString(f["key"])
@@ -65,50 +78,52 @@ func buildBlocks(st *State) {
 			}
 		}
 	}
-	for _, ev := range st.Evidence {
-		tool := asString(ev["tool"])
-		switch tool {
-		case "sc_resolve_name":
-			rows := asMaps(ev["data"])
-			if len(rows) > 0 {
-				name := asString(rows[0]["canonical_name"])
-				kind := asString(rows[0]["kind"])
-				if name != "" {
-					facts = append(facts, FactBlock{Label: "实体", Value: name})
-				}
-				if kind != "" {
-					facts = append(facts, FactBlock{Label: "类型", Value: kind})
-				}
-			}
-		case "sc_entity_facts":
-			if data, ok := ev["data"].(map[string]any); ok {
-				for _, f := range asMaps(data["facts"]) {
-					label := asString(f["key"])
-					val := factValue(f)
-					if label != "" && val != "" {
-						facts = append(facts, FactBlock{Label: label, Value: val})
+	if !hasProj {
+		for _, ev := range st.Evidence {
+			tool := asString(ev["tool"])
+			switch tool {
+			case "sc_resolve_name":
+				rows := asMaps(ev["data"])
+				if len(rows) > 0 {
+					name := asString(rows[0]["canonical_name"])
+					kind := asString(rows[0]["kind"])
+					if name != "" {
+						facts = append(facts, FactBlock{Label: "实体", Value: name})
+					}
+					if kind != "" {
+						facts = append(facts, FactBlock{Label: "类型", Value: kind})
 					}
 				}
-			}
-		case "sc_best_prices":
-			rows := asMaps(ev["data"])
-			for i, row := range rows {
-				if i >= 3 {
-					break
+			case "sc_entity_facts":
+				if data, ok := ev["data"].(map[string]any); ok {
+					for _, f := range asMaps(data["facts"]) {
+						label := asString(f["key"])
+						val := factValue(f)
+						if label != "" && val != "" {
+							facts = append(facts, FactBlock{Label: label, Value: val})
+						}
+					}
 				}
-				term := asString(row["terminal_name"])
-				if term == "" {
-					term = asString(row["terminal"])
-				}
-				price := fmt.Sprintf("%v", row["price"])
-				if price == "<nil>" {
-					price = fmt.Sprintf("%v", row["price_buy"])
+			case "sc_best_prices":
+				rows := asMaps(ev["data"])
+				for i, row := range rows {
+					if i >= 3 {
+						break
+					}
+					term := asString(row["terminal_name"])
+					if term == "" {
+						term = asString(row["terminal"])
+					}
+					price := fmt.Sprintf("%v", row["price"])
 					if price == "<nil>" {
-						price = fmt.Sprintf("%v", row["price_sell"])
+						price = fmt.Sprintf("%v", row["price_buy"])
+						if price == "<nil>" {
+							price = fmt.Sprintf("%v", row["price_sell"])
+						}
 					}
-				}
-				if term != "" && price != "<nil>" {
-					facts = append(facts, FactBlock{Label: "报价", Value: term + " " + price})
+					if term != "" && price != "<nil>" {
+						facts = append(facts, FactBlock{Label: "报价", Value: term + " " + price})
+					}
 				}
 			}
 		}
@@ -117,12 +132,14 @@ func buildBlocks(st *State) {
 		facts = facts[:8]
 	}
 	blocks.Facts = facts
-	if len(facts) > 0 {
-		blocks.Headline = facts[0].Label + ": " + facts[0].Value
-	} else if st.Primary != "" {
-		blocks.Headline = "意图 " + st.Primary
-	} else {
-		blocks.Headline = "本地查询结果"
+	if blocks.Headline == "" {
+		if len(facts) > 0 {
+			blocks.Headline = facts[0].Label + ": " + facts[0].Value
+		} else if st.Primary != "" {
+			blocks.Headline = "意图 " + st.Primary
+		} else {
+			blocks.Headline = "本地查询结果"
+		}
 	}
 	emptyEvidence := asBool(st.Worker["evidence_empty"])
 	if emptyEvidence && len(facts) == 0 {
@@ -147,6 +164,16 @@ func buildBlocks(st *State) {
 }
 
 func buildDraft(st *State) {
+	if st.projDraft != "" {
+		st.Draft = st.projDraft
+		if st.Blocks.Version != "" {
+			st.Draft += "\n版本对照 Live " + st.Blocks.Version + "。"
+		}
+		if len(st.Blocks.Warnings) > 0 {
+			st.Draft += "\n注意：" + strings.Join(st.Blocks.Warnings, "；")
+		}
+		return
+	}
 	if st.Answer != nil {
 		if d := asString(st.Answer["answer_draft"]); d != "" && !asBool(st.Answer["route_required"]) {
 			st.Draft = d
@@ -190,6 +217,7 @@ func buildDraft(st *State) {
 		st.Draft = "本地查询完成，但没有可整理的字段。"
 	}
 }
+
 
 func followUps(st *State) []string {
 	out := []string{}

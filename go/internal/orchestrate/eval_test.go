@@ -11,12 +11,13 @@ import (
 )
 
 type goldCase struct {
-	Question        string   `json:"question"`
-	ExpectedPrimary string   `json:"expected_primary"`
-	MustContain     []string `json:"must_contain"`
-	MustNotContain  []string `json:"must_not_contain"`
-	MustNotBrowse   bool     `json:"must_not_browse"`
-	MustWaitConfirm bool     `json:"must_wait_confirm"`
+	Question            string   `json:"question"`
+	ExpectedPrimary     string   `json:"expected_primary"`
+	MustContain         []string `json:"must_contain"`
+	MustNotContain      []string `json:"must_not_contain"`
+	MustHaveFactLabels  []string `json:"must_have_fact_labels"`
+	MustNotBrowse       bool     `json:"must_not_browse"`
+	MustWaitConfirm     bool     `json:"must_wait_confirm"`
 }
 
 func TestAskGoldQuestionsStrict(t *testing.T) {
@@ -58,6 +59,17 @@ func TestAskGoldQuestionsStrict(t *testing.T) {
 		for _, m := range c.MustNotContain {
 			if strings.Contains(text, m) {
 				reasons = append(reasons, "forbidden "+m)
+			}
+		}
+		if len(c.MustHaveFactLabels) > 0 {
+			labels := map[string]bool{}
+			for _, f := range res.AnswerBlocks.Facts {
+				labels[f.Label] = true
+			}
+			for _, want := range c.MustHaveFactLabels {
+				if !labels[want] {
+					reasons = append(reasons, "missing fact label "+want)
+				}
 			}
 		}
 		if c.MustNotBrowse && res.Browser.Needed {

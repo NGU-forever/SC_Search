@@ -60,6 +60,8 @@ func TestQueryPlanActionIntents(t *testing.T) {
 		{"RSI Meteor loadout", "loadout_calc"},
 		{"怎么采矿配激光", "mining_calc"},
 		{"Bit Zeros ship heist 手续费和冷却", "mission_money"},
+		{"Adagio Holdings 任务要交多少钱", "mission_money"},
+		{"Bit Zeros 声望怎么刷", "mission_list"},
 		{"红风 Junior 能接什么任务", "mission_list"},
 		{"CCU 是什么", "pledge_meta"},
 		{"Invictus 活动怎么玩", "event_guide"},

@@ -113,6 +113,13 @@ func TestAskComplexMissionRoutes(t *testing.T) {
 	if res.Trace.Mode == "" {
 		t.Fatal("missing trace mode")
 	}
+	joined := res.AnswerDraft + " " + blocksText(res)
+	if !strings.Contains(joined, "手续费") || !strings.Contains(joined, "冷却") {
+		t.Fatalf("mission answer must surface fee/cooldown, draft=%q blocks=%+v", res.AnswerDraft, res.AnswerBlocks)
+	}
+	if !strings.Contains(joined, "分钟") {
+		t.Fatalf("cooldown should include minutes unit, draft=%q", res.AnswerDraft)
+	}
 }
 
 func TestAskNoMatchDoesNotFabricate(t *testing.T) {
