@@ -164,13 +164,75 @@ func replanPrimary(st *State) string {
 	if ans := st.Answer; ans != nil {
 		if p := asString(ans["suggested_primary"]); p != "" {
 			key, _ := router.ValidateRoute(p, st.Slots)
+			if key != "" && key != st.Primary {
+				return key
+			}
+		}
+	}
+	if next := replanFromConflict(st); next != "" && next != st.Primary {
+		key, _ := router.ValidateRoute(next, st.Slots)
+		return key
+	}
+	if st.PlanIntent != "" {
+		next := query.SuggestedPrimary(query.ClassificationContext{
+			Intent: st.PlanIntent, Question: st.Question,
+		})
+		if next != "" && next != st.Primary {
+			key, _ := router.ValidateRoute(next, st.Slots)
 			return key
 		}
 	}
-	if st.PlanIntent != "" {
-		return query.IntentToSuggestedPrimary(st.PlanIntent)
+	return ""
+}
+
+func replanFromConflict(st *State) string {
+	q := st.Question
+	switch st.Primary {
+	case "ship_stats":
+		if query.MissionMoneyContext(q) && !hasShipEvidence(st) {
+			return "mission_money"
+		}
+		if query.MissionRepContext(q) {
+			return "mission_rep"
+		}
+	case "mission_money":
+		if query.MissionRepContext(q) {
+			return "mission_rep"
+		}
+	case "other":
+		lower := strings.ToLower(q)
+		if strings.Contains(lower, "ccu") || strings.Contains(q, "融船") {
+			return "pledge_meta"
+		}
+		if strings.Contains(lower, "invictus") || strings.Contains(q, "活动") {
+			return "event_guide"
+		}
+		if strings.Contains(lower, "live") || strings.Contains(q, "补丁") {
+			return "patch_live"
+		}
 	}
 	return ""
+}
+
+func hasShipEvidence(st *State) bool {
+	for _, ev := range st.Evidence {
+		tool := asString(ev["tool"])
+		if tool == "sc_resolve_name" {
+			for _, row := range asMaps(ev["data"]) {
+				if asString(row["kind"]) == "ship" {
+					return true
+				}
+			}
+		}
+		if tool == "sc_entity_facts" {
+			if data, ok := ev["data"].(map[string]any); ok {
+				if ent, ok := data["entity"].(map[string]any); ok && asString(ent["kind"]) == "ship" {
+					return true
+				}
+			}
+		}
+	}
+	return asString(st.Slots["ship"]) != ""
 }
 
 func applySlotRetry(st *State) bool {

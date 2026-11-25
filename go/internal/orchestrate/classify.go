@@ -32,7 +32,10 @@ func classify(db *sql.DB, st *State) (Phase, string, error) {
 	}
 	intent, _ := plan["intent"].(string)
 	st.PlanIntent = intent
-	suggested := query.IntentToSuggestedPrimary(intent)
+	ents := asMaps(plan["entities"])
+	suggested := query.SuggestedPrimary(query.ClassificationContext{
+		Intent: intent, Question: st.Question, Entities: ents,
+	})
 
 	explicit := strings.TrimSpace(st.Primary)
 	if explicit != "" {
@@ -61,7 +64,7 @@ func shouldBypass(st *State, intent string) bool {
 		return false
 	}
 	switch intent {
-	case "loadout_calc", "mining_calc", "mission_list", "earn_meta",
+	case "loadout_calc", "mining_calc", "mission_list", "mission_money", "earn_meta",
 		"howto", "client_help", "pledge_meta", "event_guide", "ship_shop", "trade_route":
 		return false
 	}
@@ -84,13 +87,24 @@ func slotsFromPlan(primary string, plan map[string]any, question string) map[str
 		if kind == "commodity" || kind == "" {
 			out["commodity"] = name
 		}
-	case "ship_stats", "ship_buy", "loadout", "mining":
+	case "ship_stats", "ship_buy", "loadout":
 		if kind == "ship" || kind == "" {
+			out["ship"] = name
+		}
+	case "mining":
+		// Avoid「采矿」alias → ATLS GEO unless the user named that ship.
+		if kind == "ship" {
+			alias := strings.ToLower(asString(ents[0]["zh"]))
+			if alias == "采矿" || alias == "挖矿" {
+				break
+			}
 			out["ship"] = name
 		}
 	case "mission_rep", "mission_money":
 		if kind == "faction" {
 			out["faction"] = name
+		} else if kind == "mission" {
+			out["activity"] = name
 		}
 	case "blueprint", "crafting":
 		if kind == "blueprint" || kind == "item" {

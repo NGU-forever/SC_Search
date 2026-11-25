@@ -71,7 +71,7 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 	label := displayName(entities)
 
 	if shouldDeferAnswerToRoute(question, intent) {
-		return answerDeferToRoute(plan, intent, live), nil
+		return answerDeferToRoute(plan, intent, question, live), nil
 	}
 
 	if obtainRE.MatchString(question) && primaryKind == "blueprint" && primary != "" {
@@ -96,7 +96,7 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 	hadScoredHit := false
 
 	switch intent {
-	case "mission_list":
+	case "mission_list", "mission_money":
 		faction := factionPrimary(entities)
 		fname := primary
 		if faction != nil {
@@ -284,6 +284,52 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 		draft = "这类信息需要官网或 Spectrum；本地库不覆盖实时 Patch。需要的话再开浏览器。"
 		followUps = []string{"打开 RSI 查 Patch Notes"}
 
+	case "live_local":
+		if live == "" {
+			draft = "本地库尚未记录 Live 版本；请先 sync scmdb。"
+			missing = append(missing, "live_version")
+		} else {
+			draft = fmt.Sprintf("本地对照的当前 Live 版本为 %s。", live)
+			followUps = []string{"看各源同步时间", "打开 RSI 查 Patch Notes"}
+		}
+
+	case "data_sync":
+		rows, err := DataFreshness(db, "")
+		if err != nil {
+			return nil, err
+		}
+		annotated, meta := AnnotateFreshnessRows(db, rows)
+		evidence["meta"] = meta
+		if len(annotated) == 0 {
+			draft = "本地没有 ingest 同步记录；请先 sync。"
+			missing = append(missing, "ingest_runs")
+		} else {
+			bits := []string{}
+			for i, r := range annotated {
+				if i >= 5 {
+					break
+				}
+				src := str(r["source"])
+				fin := str(r["finished_at"])
+				if src == "" || fin == "" {
+					continue
+				}
+				bits = append(bits, fmt.Sprintf("%s@%s", src, fin))
+			}
+			ver := live
+			if ver == "" {
+				ver = str(meta["as_of"])
+			}
+			if len(bits) == 0 {
+				draft = "本地有 ingest 记录但缺少完成时间。"
+			} else if ver != "" {
+				draft = fmt.Sprintf("本地数据最近同步（对照 Live %s）：%s。", ver, strings.Join(bits, "；"))
+			} else {
+				draft = fmt.Sprintf("本地数据最近同步：%s。", strings.Join(bits, "；"))
+			}
+			followUps = []string{"只看 UEX", "只看 SCMDB"}
+		}
+
 	case "facts":
 		if primary == "" {
 			draft = "本地知识库未覆盖该问题对应实体；请换标准译名或先 sync。"
@@ -386,10 +432,29 @@ func shouldDeferAnswerToRoute(question, intent string) bool {
 	return true
 }
 
-// IntentToSuggestedPrimary maps sc_answer / QueryPlan intents onto Router primaries.
+// ClassificationContext carries intent, question, and entities for Primary selection.
+type ClassificationContext struct {
+	Intent   string
+	Question string
+	Entities []map[string]any
+}
+
+// IntentToSuggestedPrimary maps intents without entity/question context (compat).
 func IntentToSuggestedPrimary(intent string) string {
+	return SuggestedPrimary(ClassificationContext{Intent: intent})
+}
+
+// SuggestedPrimary maps QueryPlan intents onto Router primaries with context.
+func SuggestedPrimary(ctx ClassificationContext) string {
+	intent := strings.TrimSpace(ctx.Intent)
+	q := strings.TrimSpace(ctx.Question)
 	switch intent {
 	case "mission_list":
+		if MissionRepContext(q) {
+			return "mission_rep"
+		}
+		return "mission_money"
+	case "mission_money":
 		return "mission_money"
 	case "prices", "trade_route":
 		return "trade"
@@ -399,14 +464,21 @@ func IntentToSuggestedPrimary(intent string) string {
 		return "mining"
 	case "earn_meta":
 		return "earn_meta"
-	case "howto", "client_help":
+	case "howto", "client_help", "pledge_meta", "event_guide":
 		return intent
 	case "docs":
 		return "lore_docs"
 	case "facts":
-		return "ship_stats"
+		if len(ctx.Entities) > 0 && str(ctx.Entities[0]["kind"]) == "ship" {
+			return "ship_stats"
+		}
+		return "other"
 	case "ship_shop":
 		return "ship_buy"
+	case "live_web":
+		return "patch_live"
+	case "live_local", "data_sync":
+		return "other"
 	default:
 		return "other"
 	}
@@ -416,8 +488,14 @@ func intentToSuggestedPrimary(intent string) string {
 	return IntentToSuggestedPrimary(intent)
 }
 
-func answerDeferToRoute(plan map[string]any, intent, live string) map[string]any {
-	primary := IntentToSuggestedPrimary(intent)
+func answerDeferToRoute(plan map[string]any, intent, question, live string) map[string]any {
+	ents, _ := plan["entities"].([]map[string]any)
+	if ents == nil {
+		if raw, ok := plan["entities"].([]any); ok {
+			ents = castMaps(raw)
+		}
+	}
+	primary := SuggestedPrimary(ClassificationContext{Intent: intent, Question: question, Entities: ents})
 	draft := fmt.Sprintf(
 		"此题超出 sc_answer 旁路范围（多槽/机制字段），请改用 sc_route → sc_worker_run（建议 primary=%s）。",
 		primary,

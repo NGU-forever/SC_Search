@@ -49,16 +49,15 @@ func TestAskGoldPrices(t *testing.T) {
 
 func TestAskLoadoutWaitConfirm(t *testing.T) {
 	eng := testEngine(t)
+	// Real entry: no Primary override — classifier must pick loadout from「改装」.
 	res := eng.Ask(context.Background(), AskInput{
 		Question: "流星改装方案",
-		Primary:  "loadout",
-		Slots:    map[string]any{"ship": "流星"},
 	})
 	if !res.OK {
 		t.Fatalf("ok=false err=%v", res.Error)
 	}
 	if res.Primary != "loadout" {
-		t.Fatalf("primary=%s", res.Primary)
+		t.Fatalf("primary=%s mode=%s", res.Primary, res.Trace.Mode)
 	}
 	if !res.Browser.Needed || !res.Browser.WaitConfirm {
 		t.Fatalf("loadout must wait_confirm, browser=%+v", res.Browser)
@@ -68,6 +67,34 @@ func TestAskLoadoutWaitConfirm(t *testing.T) {
 	}
 	if res.Browser.SearchTerm == "流星" {
 		t.Fatalf("search_term must not stay Chinese slang: %q", res.Browser.SearchTerm)
+	}
+}
+
+func TestAskMiningWaitConfirm(t *testing.T) {
+	eng := testEngine(t)
+	res := eng.Ask(context.Background(), AskInput{Question: "怎么采矿配激光"})
+	if !res.OK {
+		t.Fatalf("ok=false err=%v", res.Error)
+	}
+	if res.Primary != "mining" {
+		t.Fatalf("primary=%s", res.Primary)
+	}
+	if !res.Browser.Needed || !res.Browser.WaitConfirm {
+		t.Fatalf("mining must wait_confirm, browser=%+v", res.Browser)
+	}
+}
+
+func TestReplanFromShipStatsConflict(t *testing.T) {
+	st := &State{
+		Primary:    "ship_stats",
+		Question:   "Bit Zeros ship heist 手续费和冷却",
+		PlanIntent: "facts",
+		Slots:      map[string]any{},
+		Evidence:   []map[string]any{},
+	}
+	next := replanFromConflict(st)
+	if next != "mission_money" {
+		t.Fatalf("next=%q", next)
 	}
 }
 
