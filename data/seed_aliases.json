@@ -1708,5 +1708,17 @@
     "target": "Aluminum",
     "lang": "en",
     "kind": "commodity"
+  },
+  {
+    "alias": "Shubin",
+    "target": "Shubin Interstellar",
+    "lang": "en",
+    "kind": "faction"
+  },
+  {
+    "alias": "舒宾",
+    "target": "Shubin Interstellar",
+    "lang": "zh",
+    "kind": "faction"
   }
 ]

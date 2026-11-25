@@ -101,9 +101,16 @@ func slotsFromPlan(primary string, plan map[string]any, question string) map[str
 			out["ship"] = name
 		}
 	case "mission_rep", "mission_money":
-		if kind == "faction" {
-			out["faction"] = name
-		} else if kind == "mission" {
+		// Prefer any faction hit, not only ents[0] (short names often match terminals first).
+		for _, e := range ents {
+			if asString(e["kind"]) == "faction" {
+				if n := asString(e["canonical_name"]); n != "" {
+					out["faction"] = n
+					break
+				}
+			}
+		}
+		if out["faction"] == nil && kind == "mission" {
 			out["activity"] = name
 		}
 	case "blueprint", "crafting":

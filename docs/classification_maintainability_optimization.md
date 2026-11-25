@@ -1,6 +1,6 @@
 # `sc_ask` 分类与内部类型维护性优化设计
 
-状态：待实施  
+状态：进行中（已落地 DetectAction + actionRules；QueryPlan 前四类动作改走显式优先级）  
 日期：2026-11-26  
 优先级：P1（第二阶段）  
 范围：QueryPlan 动作分类、Primary 映射、计划构建和 Worker 内部类型边界  

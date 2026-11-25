@@ -19,7 +19,7 @@ var (
 	miningStaticRE = regexp.MustCompile(`(?i)(货舱|舱容|参数|多大|多重|质量|厂家|制造商)`)
 	pricesRE       = regexp.MustCompile(`(?i)(价格|报价|什么价|售价|收购价|最低价|最高价|最便宜|最贵|哪里买|哪里卖|在哪买|在哪卖|哪[买卖出]|买点|卖点|买入|卖出|多少钱|\bbuy\b|\bsell\b|price)`)
 	missionListRE  = regexp.MustCompile(`(?i)(有哪些任务|哪些任务|任务列表|什么任务|刷什么任务|任务有哪些|能接什么任务|刷声望|声望怎么刷|声望任务)`)
-	missionMoneyRE = regexp.MustCompile(`(?i)(手续费|买进|buy\s*in|冷却|cooldown|弃任|abandoned|站点池|site_?pool|有哪些站点|刷法|任务机制|敌船|敌舰|lifetime|时效|要交多少|交多少钱|任务.*多少钱|多少钱.*任务)`)
+	missionMoneyRE = regexp.MustCompile(`(?i)(手续费|买进|buy\s*in|冷却|cooldown|弃任|abandoned|站点池|site_?pool|有哪些站点|刷法|任务机制|敌船|敌舰|lifetime|时效|要交多少|交多少钱|任务.*多少钱|多少钱.*任务|报酬|奖励|收益|\breward\b)`)
 	missionRepRE   = regexp.MustCompile(`(?i)(junior|声望|等级|能接什么任务|声望要求|刷声望|声望怎么刷)`)
 	clientRE       = regexp.MustCompile(`(?i)(报错|进不去|打不开|锁服|汉化|虚拟内存|鼠标失灵|19000|32212|删\s*user|角色重置|reset\b|ptu怎么进|eptu|启动器)`)
 	howtoRE        = regexp.MustCompile(`(?i)(怎么走|如何走|叫船|机库|床上?登出|按键|键位|跃迁怎么|量子怎么|怎么起飞|怎么降落|对接|找路|路线|操作教程|新手教程|怎么上(我的)?飞?船|复活点|出生点)`)
@@ -69,7 +69,10 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 		primary = str(entities[0]["canonical_name"])
 	}
 
-	if isMiningSetupQuestion(q) {
+	// Action priority comes from DetectAction / actionRules (not if-order alone).
+	act := DetectAction(q)
+
+	if act.Action == ActionMining {
 		ents := filterMiningEntities(entities, q)
 		searchTerm = browserSearchTerm(ents)
 		conf := "medium"
@@ -85,10 +88,11 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 			"intent": "mining_calc", "path": "mcp_then_browser", "confidence": conf,
 			"entities": ents, "mcp_steps": steps, "browser": browserMining(searchTerm),
 			"stop_if": "只要矿船静态参数时不开采矿站", "reason": "采矿配装/模拟需交互站",
+			"action_rule": act.RuleID,
 		}, nil
 	}
 
-	if loadoutRE.MatchString(q) {
+	if act.Action == ActionLoadout {
 		conf := "medium"
 		if searchTerm != "" {
 			conf = "high"
@@ -105,10 +109,11 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 			"entities": entities, "mcp_steps": steps, "browser": browserErkul(searchTerm),
 			"stop_if": "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
 			"reason":  "改装先社区主流成文；确认后再开 Erkul 计算器",
+			"action_rule": act.RuleID,
 		}, nil
 	}
 
-	if missionMoneyRE.MatchString(q) {
+	if act.Action == ActionMissionMoney {
 		steps := []map[string]any{}
 		if resolveText != "" {
 			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
@@ -123,10 +128,11 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 			"intent": "mission_money", "path": "mcp_only", "confidence": "high",
 			"entities": entities, "mcp_steps": steps, "browser": browserOff(),
 			"stop_if": "机制字段已够则不要开浏览器", "reason": "任务手续费/冷却/站点走本地 SCMDB",
+			"action_rule": act.RuleID,
 		}, nil
 	}
 
-	if missionListRE.MatchString(q) {
+	if act.Action == ActionMissionList {
 		if faction := factionPrimary(entities); faction != nil {
 			fname := str(faction["canonical_name"])
 			ents := []map[string]any{faction}
@@ -144,6 +150,7 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 				"intent": "mission_list", "path": "mcp_only", "confidence": "high",
 				"entities": ents, "mcp_steps": steps, "browser": browserOff(),
 				"stop_if": "任务列表已够则不要开浏览器", "reason": "势力任务列表走本地 SCMDB",
+				"action_rule": act.RuleID,
 			}, nil
 		}
 	}

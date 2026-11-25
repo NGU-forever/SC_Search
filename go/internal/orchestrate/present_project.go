@@ -48,6 +48,18 @@ func evidenceByTool(st *State, tool string) []map[string]any {
 	return out
 }
 
+func evidenceMetaByTool(st *State, tool string) map[string]any {
+	for _, ev := range st.Evidence {
+		if asString(ev["tool"]) != tool {
+			continue
+		}
+		if m, ok := ev["meta"].(map[string]any); ok {
+			return m
+		}
+	}
+	return nil
+}
+
 func formatNum(v any) string {
 	if v == nil {
 		return ""

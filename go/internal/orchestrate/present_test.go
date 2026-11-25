@@ -1,6 +1,7 @@
 package orchestrate
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -112,6 +113,7 @@ func TestMissionProjectorNoCrossMix(t *testing.T) {
 	st := &State{
 		Primary:  "mission_money",
 		Question: "ship heist 手续费和冷却",
+		Slots:    map[string]any{"faction": "Bit Zeros"},
 		Evidence: []map[string]any{
 			{
 				"tool": "sc_list_missions",
@@ -197,6 +199,134 @@ func TestMissionProjectorMissingFeeWarning(t *testing.T) {
 	}
 }
 
+func TestMissionProjectorRequiresFaction(t *testing.T) {
+	st := &State{
+		Primary:  "mission_money",
+		Question: "Zorblax 任务手续费多少",
+		Slots:    map[string]any{},
+		Evidence: []map[string]any{
+			{
+				"tool": "sc_list_missions",
+				"data": []map[string]any{
+					{"title": "Adagio fee", "contractor": "Adagio Holdings", "cost_uec": 150, "cooldown": 1},
+				},
+			},
+		},
+	}
+	proj := missionProjector{}.Project(st)
+	if !strings.Contains(strings.Join(proj.Missing, ","), "faction") {
+		t.Fatalf("expected faction missing, got %+v", proj)
+	}
+	if strings.Contains(proj.Draft, "150") {
+		t.Fatalf("must not answer with unfiltered fees: %q", proj.Draft)
+	}
+}
+
+func TestMissionProjectorFeeAndRewardTogether(t *testing.T) {
+	st := &State{
+		Primary:  "mission_money",
+		Question: "Bit Zeros 任务手续费和报酬",
+		Slots:    map[string]any{"faction": "Bit Zeros"},
+		Evidence: []map[string]any{
+			{
+				"tool": "sc_list_missions",
+				"data": []map[string]any{
+					{"title": "轻松拾取", "cost_uec": 13500, "cooldown": 45, "reward_uec": nil, "systems": "Pyro"},
+					{"title": "有好货", "cost_uec": 33000, "cooldown": 45, "reward_uec": nil, "systems": "Pyro"},
+					{"title": "异种威胁", "cost_uec": 43000, "cooldown": 45, "reward_uec": nil, "systems": "Pyro"},
+					{"title": "Bad at Goodbyes", "cost_uec": nil, "reward_uec": 101000, "systems": "Nyx"},
+					{"title": "Data Transfer", "cost_uec": nil, "reward_uec": 33750, "systems": "Nyx"},
+				},
+			},
+		},
+	}
+	proj := missionProjector{}.Project(st)
+	if !strings.Contains(proj.Headline, "13500") || !strings.Contains(proj.Headline, "43000") {
+		t.Fatalf("fee range missing in headline: %q", proj.Headline)
+	}
+	if !strings.Contains(proj.Headline, "33750") || !strings.Contains(proj.Headline, "101000") {
+		t.Fatalf("reward range missing in headline: %q", proj.Headline)
+	}
+	joinedWarn := strings.Join(proj.Warnings, ";")
+	if strings.Contains(joinedWarn, "奖励") {
+		t.Fatalf("must not claim reward missing when pool has rewards: %v draft=%q", proj.Warnings, proj.Draft)
+	}
+	if !strings.Contains(proj.Draft, "手续费") || !strings.Contains(proj.Draft, "奖励") {
+		t.Fatalf("draft should mention both ranges: %q", proj.Draft)
+	}
+}
+
+func TestMissionProjectorRepHeadlineNotFee(t *testing.T) {
+	st := &State{
+		Primary:  "mission_rep",
+		Question: "Bit Zeros 声望怎么刷",
+		Slots:    map[string]any{"faction": "Bit Zeros"},
+		Evidence: []map[string]any{
+			{
+				"tool": "sc_list_missions",
+				"data": []map[string]any{
+					{"title": "Heist", "cost_uec": 13500, "cooldown": 45, "reputation_rank": "Jr. Contractor", "reputation_min": 800},
+					{"title": "BlackBox", "reward_uec": 101000, "cooldown": 1, "reputation_rank": "Head Contractor", "reputation_min": 38000},
+				},
+			},
+		},
+	}
+	proj := missionProjector{}.Project(st)
+	if strings.Contains(proj.Headline, "手续费") {
+		t.Fatalf("rep question must not use fee headline: %q", proj.Headline)
+	}
+	if !strings.Contains(proj.Headline, "声望") && !strings.Contains(proj.Draft, "声望") {
+		t.Fatalf("expected rep framing, headline=%q draft=%q", proj.Headline, proj.Draft)
+	}
+}
+
+func TestMissionProjectorRewardHeadline(t *testing.T) {
+	st := &State{
+		Primary:  "mission_money",
+		Question: "舒宾任务报酬多少",
+		Slots:    map[string]any{"faction": "Shubin Interstellar"},
+		Evidence: []map[string]any{
+			{
+				"tool": "sc_list_missions",
+				"data": []map[string]any{
+					{"title": "Low", "reward_uec": 203250, "systems": "Stanton"},
+					{"title": "High", "reward_uec": 3071250, "systems": "Stanton"},
+					{"title": "FeeOnly", "cost_uec": 150, "systems": "Stanton"},
+				},
+			},
+		},
+	}
+	proj := missionProjector{}.Project(st)
+	if !strings.Contains(proj.Headline, "203250") || !strings.Contains(proj.Headline, "3071250") {
+		t.Fatalf("reward headline range missing: %q", proj.Headline)
+	}
+	if strings.Contains(proj.Headline, "手续费") {
+		t.Fatalf("reward question should not use fee headline: %q", proj.Headline)
+	}
+}
+
+func TestMissionProjectorFeeHeadlineUsesFullPool(t *testing.T) {
+	rows := []map[string]any{}
+	for _, fee := range []int{150, 250, 1000, 5000, 20000} {
+		rows = append(rows, map[string]any{
+			"title":    "Fee " + strconv.Itoa(fee),
+			"cost_uec": fee,
+			"cooldown": 1,
+			"systems":  "Stanton",
+		})
+	}
+	st := &State{
+		Primary:  "mission_money",
+		Question: "Example 任务手续费",
+		Slots:    map[string]any{"faction": "Example"},
+		Evidence: []map[string]any{{"tool": "sc_list_missions", "data": rows}},
+	}
+	proj := missionProjector{}.Project(st)
+	if !strings.Contains(proj.Headline, "150") || !strings.Contains(proj.Headline, "20000") {
+		t.Fatalf("headline must use full fee pool range, got %q", proj.Headline)
+	}
+}
+
 func TestMissionProjectorAdagioFeePreference(t *testing.T) {
 	st := &State{
 		Primary:  "mission_money",
@@ -228,5 +358,39 @@ func TestMissionProjectorAdagioFeePreference(t *testing.T) {
 	proj := missionProjector{}.Project(st)
 	if !strings.Contains(proj.Draft, "15000") {
 		t.Fatalf("should prefer fee row even when title lacks faction words, draft=%q", proj.Draft)
+	}
+}
+
+func TestMissionProjectorFeeHeadlineAndPlaceholders(t *testing.T) {
+	st := &State{
+		Primary:  "mission_money",
+		Question: "Bit Zeros 任务手续费",
+		Slots:    map[string]any{"faction": "Bit Zeros"},
+		Evidence: []map[string]any{
+			{
+				"tool": "sc_list_missions",
+				"data": []map[string]any{
+					{"title": "轻松拾取", "cost_uec": 13500, "cooldown": 45, "systems": "Pyro"},
+					{"title": "有好货", "cost_uec": 33000, "cooldown": 45, "systems": "Pyro"},
+					{"title": "Claim #[CLAIM]: [SHIP] Salvage Rights", "cost_uec": 20000, "cooldown": 30, "systems": "Stanton"},
+				},
+			},
+		},
+	}
+	proj := missionProjector{}.Project(st)
+	if !strings.Contains(proj.Headline, "13500") || !strings.Contains(proj.Headline, "33000") {
+		t.Fatalf("headline should show fee range, got %q", proj.Headline)
+	}
+	if strings.HasPrefix(proj.Draft, "有好货") {
+		t.Fatalf("should lead with lowest fee row, draft=%q", proj.Draft)
+	}
+	if strings.Contains(proj.Draft, "[CLAIM]") || strings.Contains(proj.Draft, "[SHIP]") {
+		t.Fatalf("placeholders should be cleaned, draft=%q", proj.Draft)
+	}
+	if strings.Contains(proj.Draft, " : ") {
+		t.Fatalf("stray colon spacing left in draft=%q", proj.Draft)
+	}
+	if !strings.Contains(proj.Draft, "Salvage Rights") {
+		t.Fatalf("cleaned title should remain, draft=%q", proj.Draft)
 	}
 }

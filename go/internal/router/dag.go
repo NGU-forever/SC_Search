@@ -96,16 +96,6 @@ func ExpandDAG(question, primary string, slots map[string]any, replanCount int) 
 	if key == "trade" && cleaned["terminal"] == nil {
 		tools = remove(tools, "sc_terminal_prices")
 	}
-	if key == "mission_money" && cleaned["faction"] == nil {
-		tools = remove(tools, "sc_resolve_name")
-		hasResolve = contains(tools, "sc_resolve_name")
-		if hasResolve {
-			resolveID = "r1"
-		} else {
-			resolveID = ""
-		}
-	}
-
 	calls := []map[string]any{}
 	seq := 0
 	for _, tool := range tools {
@@ -121,14 +111,20 @@ func ExpandDAG(question, primary string, slots map[string]any, replanCount int) 
 			useResolve = resolveID
 		}
 		args := argsFor(tool, cleaned, question, useResolve)
+		// Never dump the global mission catalog for money/rep questions without a faction.
+		if tool == "sc_list_missions" && cleaned["faction"] == nil &&
+			(key == "mission_money" || key == "mission_rep") {
+			continue
+		}
 		if tool == "sc_list_missions" && cleaned["faction"] == nil {
 			needs = []string{}
 			args = argsFor(tool, cleaned, question, "")
 		}
 		if tool == "sc_list_missions" && key == "mission_money" {
 			args["prefer_fee"] = true
+			// Large factions (e.g. Shubin ~180) need a higher cap so fee/reward ranges are complete.
 			if args["limit"] == nil {
-				args["limit"] = 80
+				args["limit"] = 250
 			}
 		}
 		if tool == "sc_list_missions" && key == "earn_meta" &&
