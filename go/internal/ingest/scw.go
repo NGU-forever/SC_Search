@@ -13,12 +13,12 @@ import (
 )
 
 const (
-	scwBase             = "https://api.star-citizen.wiki"
-	scwUserAgent        = "SC_Search-ingest/0.1"
-	scwAPISource        = "scw_api"
-	scwAPIGameVersion   = "scw-live"
-	scwBPSource         = "scw_blueprint"
-	scwBPGameVersion    = "scw-blueprint-live"
+	scwBase           = "https://api.star-citizen.wiki"
+	scwUserAgent      = "SC_Search-ingest/0.1"
+	scwAPISource      = "scw_api"
+	scwAPIGameVersion = "scw-live"
+	scwBPSource       = "scw_blueprint"
+	scwBPGameVersion  = "scw-blueprint-live"
 )
 
 func localized(value any, lang string) string {
@@ -43,11 +43,21 @@ func localized(value any, lang string) string {
 }
 
 // ApplyScwVehicles mirrors Python apply_scw_vehicles.
+//
+// Category labels (size/type/production_status/career/foci) are facts, never aliases:
+// a Chinese label such as「可飞行」or「小」is a property value shared by hundreds of
+// ships and would make ResolveName return the whole fleet. Only the entity's own
+// name / game_name / slug become aliases.
 func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVersion string) (int, error) {
 	if gameVersion == "" {
 		gameVersion = scwAPIGameVersion
 	}
 	if err := ClearSourceFactsRelations(conn, scwAPISource, gameVersion); err != nil {
+		return 0, err
+	}
+	// Rebuild this source's aliases from scratch so stale polluted rows written by
+	// older versions disappear on the next sync (no separate migration script).
+	if _, err := conn.Exec(`DELETE FROM aliases WHERE source = ?`, scwAPISource); err != nil {
 		return 0, err
 	}
 	run := runID
@@ -63,6 +73,7 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 		if err != nil {
 			return count, err
 		}
+		// Only the entity's own name / game_name / slug are aliases.
 		_ = UpsertAlias(conn, entityID, name, "en", scwAPISource)
 		if canonical != name {
 			_ = UpsertAlias(conn, entityID, canonical, "en", scwAPISource)
@@ -87,13 +98,14 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 			if en != "" {
 				_ = UpsertFact(conn, entityID, pair[1], scwAPISource, gameVersion, &run, en, nil, "")
 			}
-			if zh != "" && zh != en {
-				_ = UpsertAlias(conn, entityID, zh, "zh", scwAPISource)
+			// Chinese category labels are facts, not aliases (they are shared by many ships).
+			if zh != "" {
+				_ = UpsertFact(conn, entityID, pair[1]+"_zh", scwAPISource, gameVersion, &run, zh, nil, "")
 			}
 		}
 		foci := asAnySlice(v["foci"])
 		if len(foci) > 0 {
-			var labelsEN []string
+			var labelsEN, labelsZH []string
 			for _, focus := range foci {
 				en := localized(focus, "en_EN")
 				zh := localized(focus, "zh_CN")
@@ -101,11 +113,14 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 					labelsEN = append(labelsEN, en)
 				}
 				if zh != "" {
-					_ = UpsertAlias(conn, entityID, zh, "zh", scwAPISource)
+					labelsZH = append(labelsZH, zh)
 				}
 			}
 			if len(labelsEN) > 0 {
 				_ = UpsertFact(conn, entityID, "foci", scwAPISource, gameVersion, &run, strings.Join(labelsEN, ", "), nil, "")
+			}
+			if len(labelsZH) > 0 {
+				_ = UpsertFact(conn, entityID, "foci_zh", scwAPISource, gameVersion, &run, strings.Join(labelsZH, ", "), nil, "")
 			}
 		}
 		descSrc := v["description"]

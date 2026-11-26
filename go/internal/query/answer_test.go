@@ -1,21 +1,17 @@
-package query
+package query_test
 
 import (
 	"testing"
 
-	"github.com/frankxiong/sc-search/internal/db"
+	"github.com/frankxiong/sc-search/internal/query"
+	"github.com/frankxiong/sc-search/internal/testfixture"
 )
 
 func TestAnswerQuestionFacts(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	query.SetGuidesRoot(testfixture.Root(t))
+	sqlDB := testfixture.New(t)
 
-	ans, err := AnswerQuestion(sqlDB, "卡拉克货舱多大", "brief", "")
+	ans, err := query.AnswerQuestion(sqlDB, "卡拉克货舱多大", "brief", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,15 +25,10 @@ func TestAnswerQuestionFacts(t *testing.T) {
 }
 
 func TestAnswerQuestionEarnMetaNative(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	query.SetGuidesRoot(testfixture.Root(t))
+	sqlDB := testfixture.New(t)
 
-	ans, err := AnswerQuestion(sqlDB, "萌新怎么赚钱开荒", "brief", "")
+	ans, err := query.AnswerQuestion(sqlDB, "萌新怎么赚钱开荒", "brief", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,15 +42,10 @@ func TestAnswerQuestionEarnMetaNative(t *testing.T) {
 }
 
 func TestAnswerQuestionDefersComplexMission(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	query.SetGuidesRoot(testfixture.Root(t))
+	sqlDB := testfixture.New(t)
 
-	ans, err := AnswerQuestion(sqlDB, "Bit Zeros ship heist 手续费和冷却，站点有哪些", "brief", "")
+	ans, err := query.AnswerQuestion(sqlDB, "Bit Zeros ship heist 手续费和冷却，站点有哪些", "brief", "")
 	if err != nil {
 		t.Fatal(err)
 	}

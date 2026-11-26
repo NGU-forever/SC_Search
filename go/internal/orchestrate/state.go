@@ -18,10 +18,10 @@ const (
 )
 
 const (
-	StatusCompleted   = "completed"
+	StatusCompleted    = "completed"
 	StatusAwaitingUser = "awaiting_user"
-	StatusPartial     = "partial"
-	StatusFailed      = "failed"
+	StatusPartial      = "partial"
+	StatusFailed       = "failed"
 )
 
 // AskInput is the public sc_ask request.
@@ -98,10 +98,10 @@ type AskResult struct {
 
 // Policy holds hard limits for the state machine.
 type Policy struct {
-	MaxSteps       int
-	MaxReplan      int
-	MaxSlotRetry   int
-	AllowRetry     bool
+	MaxSteps     int
+	MaxReplan    int
+	MaxSlotRetry int
+	AllowRetry   bool
 }
 
 // DefaultPolicy returns v1 limits from the design doc.

@@ -26,11 +26,26 @@ func uexPayload(version string, commodityPrices map[string]float64) UexPayload {
 		GameVersion: version,
 		Terminals:   []map[string]any{{"id": 1.0, "name": "Area18", "code": "A18"}},
 	}
-	id := 10.0
+	// Stable commodity ids: map iteration order varies, and reusing id 10 for a
+	// different commodity in the next snapshot would collide on the uuid index.
+	ids := map[string]float64{"Quantanium": 10, "Waste": 11}
+	next := 12.0
+	for _, name := range []string{"Quantanium", "Waste"} {
+		sell, ok := commodityPrices[name]
+		if !ok {
+			continue
+		}
+		p.Commodities = append(p.Commodities, map[string]any{"id": ids[name], "name": name})
+		p.Prices = append(p.Prices, map[string]any{"id_commodity": ids[name], "id_terminal": 1.0, "price_sell": sell})
+	}
 	for name, sell := range commodityPrices {
+		if _, known := ids[name]; known {
+			continue
+		}
+		id := next
+		next++
 		p.Commodities = append(p.Commodities, map[string]any{"id": id, "name": name})
 		p.Prices = append(p.Prices, map[string]any{"id_commodity": id, "id_terminal": 1.0, "price_sell": sell})
-		id++
 	}
 	return p
 }

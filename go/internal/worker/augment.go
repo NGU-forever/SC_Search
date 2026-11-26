@@ -55,7 +55,7 @@ func MaybeAugment(calls []map[string]any, results map[string]map[string]any, pri
 			}
 			extra = append(extra, map[string]any{
 				"id": cid, "tool": "sc_entity_facts",
-				"args": map[string]any{"name_or_id": canon, "detail": "compact"},
+				"args":  map[string]any{"name_or_id": canon, "detail": "compact"},
 				"needs": []any{}, "augmented": true,
 				// resolve→facts counts as real evidence
 				"evidence_weight": 1,

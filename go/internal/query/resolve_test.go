@@ -1,22 +1,16 @@
-package query
+package query_test
 
 import (
-	"path/filepath"
-	"runtime"
 	"testing"
 
-	"github.com/frankxiong/sc-search/internal/db"
+	"github.com/frankxiong/sc-search/internal/query"
+	"github.com/frankxiong/sc-search/internal/testfixture"
 )
 
 func TestResolveNameCarrackAlias(t *testing.T) {
-	root := repoRoot(t)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	sqlDB := testfixture.New(t)
 
-	rows, err := ResolveName(sqlDB, "卡拉克")
+	rows, err := query.ResolveName(sqlDB, "卡拉克")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +19,7 @@ func TestResolveNameCarrackAlias(t *testing.T) {
 	}
 	found := false
 	for _, r := range rows {
-		if str(r["canonical_name"]) == "Carrack" || str(r["kind"]) == "ship" {
+		if r["canonical_name"] == "Anvil Carrack" && r["kind"] == "ship" {
 			found = true
 			break
 		}
@@ -35,34 +29,35 @@ func TestResolveNameCarrackAlias(t *testing.T) {
 	}
 }
 
-func TestDataFreshness(t *testing.T) {
-	root := repoRoot(t)
-	sqlDB, err := db.Open(root)
+func TestResolveNameCategoryLabelDoesNotHitFleet(t *testing.T) {
+	sqlDB := testfixture.New(t)
+
+	rows, err := query.ResolveName(sqlDB, "勘探")
 	if err != nil {
-		t.Skip(err)
+		t.Fatal(err)
 	}
-	defer sqlDB.Close()
-	rows, err := DataFreshness(sqlDB, "")
+	for _, r := range rows {
+		if r["kind"] == "ship" {
+			t.Fatalf("勘探 resolved to ship %v; SCW category labels must be facts, not aliases", r["canonical_name"])
+		}
+	}
+}
+
+func TestDataFreshness(t *testing.T) {
+	sqlDB := testfixture.New(t)
+
+	rows, err := query.DataFreshness(sqlDB, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) == 0 {
 		t.Fatal("expected ingest_runs")
 	}
-	live, err := LiveGameVersion(sqlDB)
+	live, err := query.LiveGameVersion(sqlDB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if live == "" {
-		t.Fatal("empty live")
+	if live != "4.10.3" {
+		t.Fatalf("live=%q want 4.10.3", live)
 	}
-}
-
-func repoRoot(t *testing.T) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("no caller")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
 }

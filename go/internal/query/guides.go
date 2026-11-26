@@ -99,14 +99,14 @@ func BrowserGuide(category string, limit int) map[string]any {
 		start = resources[0]["url"]
 	}
 	return map[string]any{
-		"needed":      true,
-		"site":        "guide",
-		"start_url":   start,
-		"search_term": "",
-		"resources":   resources,
-		"max_actions": 6,
-		"extract":     []any{"page title", "key steps if visible"},
-		"do_not":      []any{"open /auth", "/settings", "login", "wander other sites first"},
+		"needed":       true,
+		"site":         "guide",
+		"start_url":    start,
+		"search_term":  "",
+		"resources":    resources,
+		"max_actions":  6,
+		"extract":      []any{"page title", "key steps if visible"},
+		"do_not":       []any{"open /auth", "/settings", "login", "wander other sites first"},
 		"wait_confirm": true,
 	}
 }

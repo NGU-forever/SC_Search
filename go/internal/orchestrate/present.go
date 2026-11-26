@@ -218,7 +218,6 @@ func buildDraft(st *State) {
 	}
 }
 
-
 func followUps(st *State) []string {
 	out := []string{}
 	if st.Answer != nil {

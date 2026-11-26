@@ -30,6 +30,9 @@ jobs:
           cd go
           CGO_ENABLED=0 go build -o sc-search ./cmd/sc-search
 
+      - name: Test before syncing
+        run: cd go && go test ./... -count=1
+
       - name: Init and sync knowledge DB
         env:
           UEX_API_TOKEN: ${{ secrets.UEX_API_TOKEN }}

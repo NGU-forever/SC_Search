@@ -20,14 +20,14 @@ var resolveSlotKeys = []string{
 
 // RoutePlan is the sc_route data payload.
 type RoutePlan struct {
-	Primary     string         `json:"primary"`
-	Slots       map[string]any `json:"slots"`
-	Question    string         `json:"question"`
+	Primary     string           `json:"primary"`
+	Slots       map[string]any   `json:"slots"`
+	Question    string           `json:"question"`
 	Calls       []map[string]any `json:"calls"`
-	Path        string         `json:"path"`
-	Notes       string         `json:"notes"`
-	ReplanCount int            `json:"replan_count"`
-	PlanIntent  any            `json:"plan_intent"`
+	Path        string           `json:"path"`
+	Notes       string           `json:"notes"`
+	ReplanCount int              `json:"replan_count"`
+	PlanIntent  any              `json:"plan_intent"`
 }
 
 func ValidateRoute(primary string, slots map[string]any) (string, map[string]any) {

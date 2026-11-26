@@ -107,8 +107,8 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 		return map[string]any{
 			"intent": "loadout_calc", "path": "mcp_then_browser", "confidence": conf,
 			"entities": entities, "mcp_steps": steps, "browser": browserErkul(searchTerm),
-			"stop_if": "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
-			"reason":  "改装先社区主流成文；确认后再开 Erkul 计算器",
+			"stop_if":     "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
+			"reason":      "改装先社区主流成文；确认后再开 Erkul 计算器",
 			"action_rule": act.RuleID,
 		}, nil
 	}
@@ -235,7 +235,7 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 			"entities": entities, "mcp_steps": []map[string]any{},
 			"browser": map[string]any{
 				"needed": true, "site": "rsi",
-				"start_url": "https://robertsspaceindustries.com",
+				"start_url":   "https://robertsspaceindustries.com",
 				"search_term": q, "max_actions": 8,
 				"extract": []any{"patch version", "relevant notes"},
 				"do_not":  []any{"open /auth", "/settings"},
@@ -247,9 +247,9 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 	if docsRE.MatchString(q) {
 		return map[string]any{
 			"intent": "docs", "path": "mcp_only", "confidence": "medium",
-			"entities": entities,
+			"entities":  entities,
 			"mcp_steps": []map[string]any{{"tool": "sc_search_docs", "args": map[string]any{"query": q, "limit": 5}}},
-			"browser": browserOff(), "stop_if": "库有摘要则不要开浏览器", "reason": "本地 Wiki FTS",
+			"browser":   browserOff(), "stop_if": "库有摘要则不要开浏览器", "reason": "本地 Wiki FTS",
 		}, nil
 	}
 
@@ -801,8 +801,8 @@ func browserErkul(searchTerm string) map[string]any {
 	return map[string]any{
 		"needed": true, "site": "erkul", "start_url": start,
 		"search_term": searchTerm, "resources": resources, "max_actions": 8,
-		"extract": []any{"community recommended loadout", "selected ship", "DPS summary", "shield / power notes"},
-		"do_not": []any{"open /auth", "/settings", "wander other sites first", "open calculator before community answer unless user confirmed"},
+		"extract":      []any{"community recommended loadout", "selected ship", "DPS summary", "shield / power notes"},
+		"do_not":       []any{"open /auth", "/settings", "wander other sites first", "open calculator before community answer unless user confirmed"},
 		"wait_confirm": true, "leave_open": true, "handoff_to_user": true,
 	}
 }
@@ -816,8 +816,8 @@ func browserMining(searchTerm string) map[string]any {
 	return map[string]any{
 		"needed": true, "site": "mining", "start_url": start,
 		"search_term": searchTerm, "resources": resources, "max_actions": 8,
-		"extract": []any{"laser / module setup", "instability / resistance notes"},
-		"do_not": []any{"open /auth", "/settings", "wander other sites first"},
+		"extract":      []any{"laser / module setup", "instability / resistance notes"},
+		"do_not":       []any{"open /auth", "/settings", "wander other sites first"},
 		"wait_confirm": true, "leave_open": true, "handoff_to_user": true,
 	}
 }
@@ -838,6 +838,6 @@ func guidePlan(intent, category string, entities []map[string]any, resolveText, 
 		"intent": intent, "path": "mcp_then_browser", "confidence": "medium",
 		"entities": entities, "mcp_steps": steps, "browser": BrowserGuide(category, 4),
 		"stop_if": "Agent 可用本地证据+推理成文；仅当用户确认或要逐步核对时再开浏览器",
-		"reason": reason, "guide_category": category,
+		"reason":  reason, "guide_category": category,
 	}
 }

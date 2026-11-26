@@ -1,0 +1,70 @@
+{"question": "卡拉克货舱多大", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["456", "Anvil Carrack"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "Carrack 载货量和厂家？", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["456", "Anvil Aerospace"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "短剑货舱多大", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["Aegis Gladius", "0 SCU"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "流星载货量", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["RSI Meteor", "0 SCU"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "Carrack 厂家", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["Anvil Aerospace"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "短剑厂家", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["Aegis Dynamics"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "卡拉克载货量", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["456 SCU"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "Anvil Carrack 货舱多少", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["456 SCU", "Anvil Carrack"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "Carrack 货舱", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["456"], "must_not_browse": true, "tags": ["ship"]}
+{"question": "黄金哪里卖最贵", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9500", "Area 18 TDD"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "黄金哪里买便宜", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["7000", "Area 18 TDD"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "黄金在 Area18 什么价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9500", "Area 18 TDD"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "Quantanium 在哪卖", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9100", "Checkmate"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "Quantanium 哪里买便宜", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["6400", "Checkmate"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "黄金买入价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["7000", "Area 18 TDD"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "Quantanium 卖出价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9100", "Checkmate"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "Quantanium 在 Area18 什么价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["8800", "Area 18 TDD"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "黄金在 Checkmate 什么价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["8800", "Checkmate"], "must_not_contain": ["当前最佳", "现行市价", "落后 Live", "非当前 Live 报价"], "must_not_browse": true, "tags": ["price"]}
+{"question": "黄金哪里卖最贵", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9500", "Area 18 TDD", "落后 Live"], "must_not_contain": ["当前最佳", "现行市价"], "must_not_browse": true, "tags": ["price", "stale"], "must_contain_any": ["快照中较优", "非当前 Live 报价"]}
+{"question": "Quantanium 在哪卖", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9100", "Checkmate", "落后 Live"], "must_not_contain": ["当前最佳", "现行市价"], "must_not_browse": true, "tags": ["price", "stale"], "must_contain_any": ["快照中较优", "非当前 Live 报价"]}
+{"question": "黄金在 Area18 什么价", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["9500", "Area 18 TDD", "落后 Live", "非当前 Live 报价"], "must_not_contain": ["当前最佳", "现行市价"], "must_not_browse": true, "tags": ["price", "stale"]}
+{"question": "Quantanium 哪里买便宜", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["6400", "Checkmate", "落后 Live", "非当前 Live 报价"], "must_not_contain": ["当前最佳", "现行市价"], "must_not_browse": true, "tags": ["price", "stale"]}
+{"question": "Bit Zeros ship heist 手续费和冷却", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["13500", "45", "分钟"], "must_have_fact_labels": ["手续费", "冷却"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 手续费区间", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["5000", "13500", "手续费"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 冷却时间", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["45", "分钟", "冷却"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros ship heist 有哪些站点", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["Ship Heist", "Checkmate", "站点"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 任务时效", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["2 小时", "时效"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "任务要交多少钱", "expected_primary": "mission_money", "expected_status": "partial", "must_contain": ["未能识别任务势力"], "must_not_contain": ["Ship Heist"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros ship heist 任务机制", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["手续费", "冷却", "13500", "45"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 买进要多少", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["5000", "13500"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 弃任冷却", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["45", "分钟"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "红风任务手续费", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["2500", "4000"], "must_not_browse": true, "tags": ["mission_fee"]}
+{"question": "Bit Zeros 任务报酬区间", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["20000", "120000", "奖励"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Bit Zeros 奖励最高的任务", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["120000", "Ship Heist"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Bit Zeros 声望怎么刷", "expected_primary": "mission_rep", "expected_status": "completed", "must_contain": ["Junior", "500", "截断"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "红风 Junior 能接什么任务", "expected_primary": "mission_rep", "expected_status": "completed", "must_contain": ["Junior Delivery", "Junior"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "红风任务奖励", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["30000", "60000"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Bit Zeros 任务奖励", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["20000", "120000"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Bit Zeros 任务收益", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["20000", "120000"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "红风任务收益", "expected_primary": "mission_money", "expected_status": "completed", "must_contain": ["30000", "60000"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Bit Zeros 声望任务", "expected_primary": "mission_rep", "expected_status": "completed", "must_contain": ["Junior", "500"], "must_not_browse": true, "tags": ["mission_reward"]}
+{"question": "Test BP 蓝图需要什么材料", "expected_primary": "other", "expected_status": "completed", "must_contain": ["制造材料", "Agricium", "1.5 SCU", "Bexalite", "2 SCU"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Test BP 蓝图配方", "expected_primary": "other", "expected_status": "completed", "must_contain": ["制造材料", "Agricium", "1.5 SCU", "Bexalite", "2 SCU"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Salvage Rig Blueprint 配方", "expected_primary": "other", "expected_status": "completed", "must_contain": ["制造材料", "Bexalite", "0.5 SCU", "Titanium", "×4"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Salvage Rig Blueprint 需要什么材料", "expected_primary": "other", "expected_status": "completed", "must_contain": ["制造材料", "Bexalite", "0.5 SCU", "Titanium", "×4"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Test BP 怎么获取", "expected_primary": "other", "expected_status": "completed", "must_contain": ["Test BP", "shop_buyable=unknown"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Test BP 蓝图在哪掉落", "expected_primary": "other", "expected_status": "completed", "must_contain": ["Test BP", "shop_buyable=unknown"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "Test BP 制造材料", "expected_primary": "other", "expected_status": "completed", "must_contain": ["Agricium", "1.5 SCU"], "must_not_browse": true, "tags": ["blueprint"]}
+{"question": "zzz_not_a_real_sc_entity_qqq 参数", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_contain": ["DPS 99999"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "Unobtainium 哪里卖", "expected_primary": "trade", "expected_status": "completed", "must_contain": ["本地没有"], "must_not_contain": ["aUEC"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "不存在的船 货舱多大", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "Shubin Interstellar 能接什么任务", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "ZZZ-99999 蓝图材料", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "Fake Faction 声望怎么刷", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "Nova Intergalactic 任务手续费", "expected_primary": "mission_money", "expected_status": "partial", "must_contain": ["未能识别任务势力"], "must_not_contain": ["手续费:"], "must_not_browse": true, "tags": ["no_match"]}
+{"question": "流星改装方案", "expected_primary": "loadout", "expected_status": "awaiting_user", "must_contain": ["Erkul"], "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "怎么采矿配激光", "expected_primary": "mining", "expected_status": "awaiting_user", "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "Carrack 在哪买", "expected_primary": "ship_buy", "expected_status": "awaiting_user", "must_contain": ["Anvil Carrack"], "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "汉化进不去游戏怎么办", "expected_primary": "client_help", "expected_status": "awaiting_user", "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "CCU 是什么", "expected_primary": "pledge_meta", "expected_status": "awaiting_user", "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "Invictus 活动怎么玩", "expected_primary": "event_guide", "expected_status": "awaiting_user", "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "萌新怎么赚钱开荒", "expected_primary": "earn_meta", "expected_status": "awaiting_user", "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "RSI Meteor loadout", "expected_primary": "loadout", "expected_status": "awaiting_user", "must_contain": ["RSI Meteor"], "must_wait_confirm": true, "tags": ["gate"]}
+{"question": "采矿船货舱多大", "expected_primary": "other", "expected_status": "completed", "must_contain": ["本地知识库未覆盖"], "must_not_contain": ["Erkul"], "must_not_browse": true, "tags": ["classification"]}
+{"question": "Carrack 火力多大", "expected_primary": "ship_stats", "expected_status": "completed", "must_contain": ["Anvil Carrack"], "must_not_contain": ["Erkul"], "must_not_browse": true, "tags": ["classification"]}
+{"question": "黄金是什么", "expected_primary": "other", "expected_status": "completed", "must_contain": ["Gold"], "must_not_contain": ["9500"], "must_not_browse": true, "tags": ["classification"]}
+{"question": "当前 Live 版本", "expected_primary": "other", "expected_status": "completed", "must_contain": ["4.10.3"], "must_not_browse": true, "tags": ["freshness"]}
+{"question": "现在游戏版本是多少", "expected_primary": "other", "expected_status": "completed", "must_contain": ["4.10.3"], "must_not_browse": true, "tags": ["freshness"]}
+{"question": "本地数据是什么时候同步的？", "expected_primary": "other", "expected_status": "completed", "must_contain": ["scmdb", "uex", "4.10.3"], "must_not_browse": true, "tags": ["freshness"]}
+{"question": "本地 UEX 同步时间", "expected_primary": "other", "expected_status": "completed", "must_contain": ["uex", "4.10.3"], "must_not_browse": true, "tags": ["freshness"]}

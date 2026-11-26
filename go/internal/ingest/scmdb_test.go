@@ -26,12 +26,12 @@ func TestSyncScmdbPayload(t *testing.T) {
 		},
 		"contracts": []any{
 			map[string]any{
-				"id":           "m1",
-				"debugName":    "mission_test_1",
-				"title":        "Test Mission",
-				"rewardUEC":    1000.0,
-				"factionGuid":  "fg1",
-				"locations":    []any{"loc1"},
+				"id":          "m1",
+				"debugName":   "mission_test_1",
+				"title":       "Test Mission",
+				"rewardUEC":   1000.0,
+				"factionGuid": "fg1",
+				"locations":   []any{"loc1"},
 			},
 		},
 	})
@@ -70,13 +70,13 @@ func TestMissionSitePoolByRegion(t *testing.T) {
 		},
 		"contracts": []any{
 			map[string]any{
-				"id":                     "heist1",
-				"debugName":              "UnafilliatedCFP_Pyro_RegionA_M_2steroidBase_Criminals_ShipHeist",
-				"title":                  "Ship Heist",
-				"personalCooldownTime":   45.0,
-				"timeToComplete":         1.0,
-				"buyIn":                  33000.0,
-				"pyroRegion":             []any{"A", "B", "C", "D"},
+				"id":                   "heist1",
+				"debugName":            "UnafilliatedCFP_Pyro_RegionA_M_2steroidBase_Criminals_ShipHeist",
+				"title":                "Ship Heist",
+				"personalCooldownTime": 45.0,
+				"timeToComplete":       1.0,
+				"buyIn":                33000.0,
+				"pyroRegion":           []any{"A", "B", "C", "D"},
 				"locationSets": []any{
 					map[string]any{"locations": []any{"a1"}},
 					map[string]any{"locations": []any{"b1"}},

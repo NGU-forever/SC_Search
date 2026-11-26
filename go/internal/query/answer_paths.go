@@ -14,13 +14,13 @@ const (
 )
 
 var guideReasoning = map[string]string{
-	"howto":        "操作/找路类：用外链与常识按步骤讲清，勿编造当前补丁独有 UI 细节。",
-	"client_help":  "客户端/报错：先列常见排查方向（USER/Reset/换区），具体错误码以教程为准。",
-	"earn_meta":    "赚钱开荒：按玩法类型组织建议；可用任务样例推理，勿编造时薪/最优线。",
-	"pledge_meta":  "氪金名词：解释 CCU/WB/信用点/退款概念，金额与活动以官网为准。",
-	"event_guide":  "活动本：说明玩法框架与风险，逐步流程引用外链，勿编造刷新点。",
-	"trade_route":  "跑商航线：可结合本地单价推理；整条最优线指向规划站。",
-	"ship_shop":    "船店/租借：本地给静态参数；购点/租金指向 Everark 等外链。",
+	"howto":       "操作/找路类：用外链与常识按步骤讲清，勿编造当前补丁独有 UI 细节。",
+	"client_help": "客户端/报错：先列常见排查方向（USER/Reset/换区），具体错误码以教程为准。",
+	"earn_meta":   "赚钱开荒：按玩法类型组织建议；可用任务样例推理，勿编造时薪/最优线。",
+	"pledge_meta": "氪金名词：解释 CCU/WB/信用点/退款概念，金额与活动以官网为准。",
+	"event_guide": "活动本：说明玩法框架与风险，逐步流程引用外链，勿编造刷新点。",
+	"trade_route": "跑商航线：可结合本地单价推理；整条最优线指向规划站。",
+	"ship_shop":   "船店/租借：本地给静态参数；购点/租金指向 Everark 等外链。",
 }
 
 func answerBlueprintObtain(db *sql.DB, question string, plan map[string]any, entities []map[string]any, label, primary, live string, factLimit int) (map[string]any, error) {
@@ -71,7 +71,7 @@ func answerBlueprintObtain(db *sql.DB, question string, plan map[string]any, ent
 			break
 		}
 		rels = append(rels, map[string]any{
-			"rel_type": "mission_reward_blueprint_pool",
+			"rel_type":  "mission_reward_blueprint_pool",
 			"from_name": m["canonical_name"], "to_name": pool, "qty": nil,
 		})
 	}
@@ -80,7 +80,7 @@ func answerBlueprintObtain(db *sql.DB, question string, plan map[string]any, ent
 			break
 		}
 		rels = append(rels, map[string]any{
-			"rel_type": "blueprint_requires",
+			"rel_type":  "blueprint_requires",
 			"from_name": primary, "to_name": mat["name"], "qty": mat["qty"],
 		})
 	}

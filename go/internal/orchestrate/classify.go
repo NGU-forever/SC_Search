@@ -9,19 +9,19 @@ import (
 )
 
 var complexPrimaries = map[string]struct{}{
-	"loadout":      {},
-	"mining":       {},
-	"mission_rep":  {},
+	"loadout":       {},
+	"mining":        {},
+	"mission_rep":   {},
 	"mission_money": {},
-	"earn_meta":    {},
-	"trade_route":  {},
-	"ship_buy":     {},
-	"bug_tip":      {},
-	"client_help":  {},
-	"howto":        {},
-	"pledge_meta":  {},
-	"event_guide":  {},
-	"patch_live":   {},
+	"earn_meta":     {},
+	"trade_route":   {},
+	"ship_buy":      {},
+	"bug_tip":       {},
+	"client_help":   {},
+	"howto":         {},
+	"pledge_meta":   {},
+	"event_guide":   {},
+	"patch_live":    {},
 }
 
 // classify fills Primary/Slots and decides Answer bypass vs Route.

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/frankxiong/sc-search/internal/db"
 	"github.com/frankxiong/sc-search/internal/query"
+	"github.com/frankxiong/sc-search/internal/testfixture"
 )
 
 func TestAskCarrackBypass(t *testing.T) {
@@ -162,14 +162,8 @@ func TestSlotRetryNoMetaSpeech(t *testing.T) {
 
 func testEngine(t *testing.T) *Engine {
 	t.Helper()
-	root := repoRoot(t)
-	query.SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	t.Cleanup(func() { _ = sqlDB.Close() })
-	return NewEngine(sqlDB)
+	query.SetGuidesRoot(testfixture.Root(t))
+	return NewEngine(testfixture.New(t))
 }
 
 func repoRoot(t *testing.T) string {

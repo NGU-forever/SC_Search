@@ -1,23 +1,23 @@
-package query
+package query_test
 
 import (
-	"path/filepath"
-	"runtime"
+	"database/sql"
 	"testing"
 
-	"github.com/frankxiong/sc-search/internal/db"
+	"github.com/frankxiong/sc-search/internal/query"
+	"github.com/frankxiong/sc-search/internal/testfixture"
 )
 
-func TestQueryPlanPrices(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+func planDB(t *testing.T) *sql.DB {
+	t.Helper()
+	query.SetGuidesRoot(testfixture.Root(t))
+	return testfixture.New(t)
+}
 
-	plan, err := QueryPlan(sqlDB, "黄金哪里卖最贵", "")
+func TestQueryPlanPrices(t *testing.T) {
+	sqlDB := planDB(t)
+
+	plan, err := query.QueryPlan(sqlDB, "黄金哪里卖最贵", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,15 +27,9 @@ func TestQueryPlanPrices(t *testing.T) {
 }
 
 func TestQueryPlanFactsCarrack(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	sqlDB := planDB(t)
 
-	plan, err := QueryPlan(sqlDB, "卡拉克货舱多大", "")
+	plan, err := query.QueryPlan(sqlDB, "卡拉克货舱多大", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,13 +39,7 @@ func TestQueryPlanFactsCarrack(t *testing.T) {
 }
 
 func TestQueryPlanActionIntents(t *testing.T) {
-	root := planRepoRoot(t)
-	SetGuidesRoot(root)
-	sqlDB, err := db.Open(root)
-	if err != nil {
-		t.Skip(err)
-	}
-	defer sqlDB.Close()
+	sqlDB := planDB(t)
 
 	cases := []struct {
 		q, intent string
@@ -75,7 +63,7 @@ func TestQueryPlanActionIntents(t *testing.T) {
 		{"黄金是什么", "facts"},
 	}
 	for _, c := range cases {
-		plan, err := QueryPlan(sqlDB, c.q, "")
+		plan, err := query.QueryPlan(sqlDB, c.q, "")
 		if err != nil {
 			t.Fatalf("%q: %v", c.q, err)
 		}
@@ -86,37 +74,28 @@ func TestQueryPlanActionIntents(t *testing.T) {
 }
 
 func TestSuggestedPrimaryContext(t *testing.T) {
-	if got := SuggestedPrimary(ClassificationContext{
+	if got := query.SuggestedPrimary(query.ClassificationContext{
 		Intent: "mission_list", Question: "红风 Junior 能接什么任务",
 		Entities: []map[string]any{{"kind": "faction", "canonical_name": "Red Wind Linehaul"}},
 	}); got != "mission_rep" {
 		t.Fatalf("got %s", got)
 	}
-	if got := SuggestedPrimary(ClassificationContext{
+	if got := query.SuggestedPrimary(query.ClassificationContext{
 		Intent: "facts", Question: "视差步枪是什么",
 		Entities: []map[string]any{{"kind": "blueprint", "canonical_name": "Parallax Energy Assault Rifle"}},
 	}); got != "other" {
 		t.Fatalf("got %s", got)
 	}
-	if got := SuggestedPrimary(ClassificationContext{
+	if got := query.SuggestedPrimary(query.ClassificationContext{
 		Intent: "facts", Question: "Carrack 货舱",
 		Entities: []map[string]any{{"kind": "ship", "canonical_name": "Anvil Carrack"}},
 	}); got != "ship_stats" {
 		t.Fatalf("got %s", got)
 	}
-	if got := SuggestedPrimary(ClassificationContext{Intent: "pledge_meta"}); got != "pledge_meta" {
+	if got := query.SuggestedPrimary(query.ClassificationContext{Intent: "pledge_meta"}); got != "pledge_meta" {
 		t.Fatalf("got %s", got)
 	}
-	if got := SuggestedPrimary(ClassificationContext{Intent: "live_local"}); got != "other" {
+	if got := query.SuggestedPrimary(query.ClassificationContext{Intent: "live_local"}); got != "other" {
 		t.Fatalf("got %s", got)
 	}
-}
-
-func planRepoRoot(t *testing.T) string {
-	t.Helper()
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("no caller")
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
 }
