@@ -39,6 +39,16 @@ func classify(db *sql.DB, st *State) (Phase, string, error) {
 	})
 
 	explicit := strings.TrimSpace(st.Primary)
+	// "facts" is the generic fallback intent; "other" is the unclassified primary.
+	generic := intent == "facts" || intent == "other"
+	if explicit == "" && generic && len(ents) == 0 && query.IsChitchat(st.Question) {
+		st.Primary = "chitchat"
+		st.Status = StatusNotFact
+		st.Mode = "chitchat_bypass"
+		st.Meta["intent"] = "chitchat"
+		st.Meta["answer_hint"] = "非事实题（问候/感谢/闲聊/主观感受）：直接自然对话，不要引用本地库、不要提 sync。"
+		return PhaseDone, "not_fact", nil
+	}
 	if explicit != "" {
 		key, cleaned := router.ValidateRoute(explicit, st.Slots)
 		st.Primary = key

@@ -24,7 +24,7 @@ func registerOrchestrationTools(server *mcp.Server, d serverDeps) {
 func registerAskTool(server *mcp.Server, d serverDeps) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "sc_ask",
-		Description: "Default one-shot Star Citizen entry: classify, route, execute local evidence tools, retry once when safe, and return a Chinese draft plus browser gate.",
+		Description: "Default one-shot Star Citizen entry: classify, route, execute local evidence tools, retry once when safe, and return a Chinese draft plus browser gate. Chitchat/greetings return status=not_fact with no draft: reply conversationally, do not cite the DB.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input AskIn) (*mcp.CallToolResult, map[string]any, error) {
 		if d.db == nil {
 			return d.requireDB()

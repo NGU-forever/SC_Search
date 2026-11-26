@@ -22,6 +22,9 @@ const (
 	StatusAwaitingUser = "awaiting_user"
 	StatusPartial      = "partial"
 	StatusFailed       = "failed"
+	// StatusNotFact means the message is chitchat/opinion with no fact lookup;
+	// hosts should reply conversationally and must not cite the local DB.
+	StatusNotFact = "not_fact"
 )
 
 // AskInput is the public sc_ask request.

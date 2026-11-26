@@ -184,3 +184,35 @@ func blocksText(res AskResult) string {
 	}
 	return b.String()
 }
+
+func TestAskChitchatIsNotFact(t *testing.T) {
+	eng := testEngine(t)
+	for _, q := range []string{"你好", "谢谢你，今天心情不错", "星际公民好玩吗"} {
+		res := eng.Ask(context.Background(), AskInput{Question: q})
+		if res.Status != StatusNotFact {
+			t.Fatalf("%q: status=%s want %s (primary=%s mode=%s)", q, res.Status, StatusNotFact, res.Primary, res.Trace.Mode)
+		}
+		if !res.OK {
+			t.Fatalf("%q: ok=false, not_fact must not be a failure: %v", q, res.Error)
+		}
+		if res.AnswerDraft != "" || res.Error != nil {
+			t.Fatalf("%q: must not return draft/error, got draft=%q err=%v", q, res.AnswerDraft, res.Error)
+		}
+		if res.Meta["intent"] != "chitchat" {
+			t.Fatalf("%q: meta.intent=%v", q, res.Meta["intent"])
+		}
+		for _, p := range res.Trace.Phases {
+			if p == PhaseRoute || p == PhaseWorker {
+				t.Fatalf("%q: chitchat must not route to workers, phases=%v", q, res.Trace.Phases)
+			}
+		}
+	}
+}
+
+func TestAskFactQuestionIsNotChitchat(t *testing.T) {
+	eng := testEngine(t)
+	res := eng.Ask(context.Background(), AskInput{Question: "卡拉克货舱多大"})
+	if res.Status == StatusNotFact {
+		t.Fatalf("fact question classified as chitchat: %+v", res.Meta)
+	}
+}

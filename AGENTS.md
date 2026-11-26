@@ -6,6 +6,7 @@
 
 ```text
 事实题默认先调 sc_ask(question=用户原话)。
+非事实题（问候、感谢、闲聊、「星际公民好玩吗」这类主观感受）不调用 sc_ask，直接自然对话；若误调返回 `status=not_fact`，同样直接对话，不引用本地库、不提 sync。
 跨领域问题（如刷任务+卖货/路线/避坑）可补调关联工具（如 sc_best_prices）并顺手查阅 TIPS.md，拼齐证据再成文。
 以本地证据为事实锚点，结合 SC 机制与用户上下文展开成可执行的玩家方案（勿机械复读 answer_draft）。
 browser.wait_confirm=true 时先征得用户确认。
