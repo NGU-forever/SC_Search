@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frankxiong/sc-search/internal/anyx"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/worker"
 )
@@ -118,7 +119,7 @@ func (e *Engine) runPhase(ctx context.Context, st *State) (Phase, string, string
 		if path := asString(ans["path"]); path != "" {
 			st.Path = path
 		}
-		if asBool(ans["route_required"]) {
+		if anyx.Bool(ans["route_required"]) {
 			if p := asString(ans["suggested_primary"]); p != "" {
 				st.Primary = p
 			}
@@ -147,14 +148,14 @@ func (e *Engine) runPhase(ctx context.Context, st *State) (Phase, string, string
 	case PhaseWorker:
 		wr := worker.RunPlan(ctx, st.Plan, e.Invoker)
 		st.Worker = wr
-		st.Evidence = asMaps(wr["evidence"])
+		st.Evidence = anyx.Maps(wr["evidence"])
 		if meta, ok := wr["meta"].(map[string]any); ok {
 			st.Meta = meta
 		}
 		if path := asString(wr["path"]); path != "" {
 			st.Path = path
 		}
-		if asBool(wr["replan_suggested"]) || asBool(wr["slot_retry_suggested"]) {
+		if anyx.Bool(wr["replan_suggested"]) || anyx.Bool(wr["slot_retry_suggested"]) {
 			return PhaseRetry, "retry_signal", retryReason(wr), nil
 		}
 		return PhasePresent, "worker_ok", st.Primary, nil
@@ -243,13 +244,13 @@ func (e *Engine) finish(st *State, traceLevel string) AskResult {
 
 func evidenceFromAnswer(ev map[string]any) []map[string]any {
 	out := []map[string]any{}
-	if facts := asMaps(ev["facts"]); len(facts) > 0 {
+	if facts := anyx.Maps(ev["facts"]); len(facts) > 0 {
 		out = append(out, map[string]any{"tool": "sc_entity_facts", "ok": true, "data": map[string]any{"facts": facts}})
 	}
-	if prices := asMaps(ev["prices"]); len(prices) > 0 {
+	if prices := anyx.Maps(ev["prices"]); len(prices) > 0 {
 		out = append(out, map[string]any{"tool": "sc_best_prices", "ok": true, "data": prices})
 	}
-	if ents := asMaps(ev["entities"]); len(ents) > 0 {
+	if ents := anyx.Maps(ev["entities"]); len(ents) > 0 {
 		out = append(out, map[string]any{"tool": "sc_resolve_name", "ok": true, "data": ents})
 	}
 	return out
@@ -276,14 +277,14 @@ func metaFromAnswer(ans map[string]any) map[string]any {
 }
 
 func retryReason(wr map[string]any) string {
-	if asBool(wr["replan_suggested"]) {
+	if anyx.Bool(wr["replan_suggested"]) {
 		return "replan_suggested"
 	}
-	if asBool(wr["slot_retry_suggested"]) {
-		if asBool(wr["strong_family_missing"]) {
+	if anyx.Bool(wr["slot_retry_suggested"]) {
+		if anyx.Bool(wr["strong_family_missing"]) {
 			return "strong_family_missing"
 		}
-		if asBool(wr["evidence_empty"]) {
+		if anyx.Bool(wr["evidence_empty"]) {
 			return "evidence_empty"
 		}
 		return "slot_retry_suggested"

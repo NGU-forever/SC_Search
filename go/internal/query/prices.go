@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([]map[string]any, error) {
@@ -70,7 +72,7 @@ func BestPrices(db *sql.DB, commodity, side string, system string, limit int) ([
 		if sys != "" {
 			filtered := make([]map[string]any, 0, limit)
 			for _, row := range items {
-				if TerminalMatchesSystem(str(row["terminal"]), sys) {
+				if TerminalMatchesSystem(anyx.String(row["terminal"]), sys) {
 					filtered = append(filtered, row)
 					if len(filtered) >= limit {
 						break
@@ -134,7 +136,7 @@ func commodityCandidates(matches []map[string]any) []map[string]any {
 	seen := map[int64]bool{}
 	out := []map[string]any{}
 	for _, m := range matches {
-		if str(m["kind"]) != "commodity" {
+		if anyx.String(m["kind"]) != "commodity" {
 			continue
 		}
 		id := asInt64(m["id"])
@@ -149,7 +151,7 @@ func commodityCandidates(matches []map[string]any) []map[string]any {
 
 func pickEntity(matches []map[string]any, kind string) map[string]any {
 	for _, m := range matches {
-		if str(m["kind"]) == kind {
+		if anyx.String(m["kind"]) == kind {
 			return m
 		}
 	}

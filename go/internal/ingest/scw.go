@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 const (
@@ -26,14 +28,14 @@ func localized(value any, lang string) string {
 		return ""
 	}
 	if m, ok := value.(map[string]any); ok {
-		if v := strAny(m[lang]); v != "" {
+		if v := anyx.String(m[lang]); v != "" {
 			return v
 		}
-		if v := strAny(m["en_EN"]); v != "" {
+		if v := anyx.String(m["en_EN"]); v != "" {
 			return v
 		}
 		for _, v := range m {
-			if s := strAny(v); s != "" {
+			if s := anyx.String(v); s != "" {
 				return s
 			}
 		}
@@ -63,13 +65,13 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 	run := runID
 	count := 0
 	for _, v := range vehicles {
-		name := firstNonEmpty(strAny(v["name"]), strAny(v["game_name"]), strAny(v["slug"]))
-		uuid := strAny(v["uuid"])
+		name := anyx.First(anyx.String(v["name"]), anyx.String(v["game_name"]), anyx.String(v["slug"]))
+		uuid := anyx.String(v["uuid"])
 		if name == "" || uuid == "" {
 			continue
 		}
-		canonical := firstNonEmpty(strAny(v["game_name"]), name)
-		entityID, err := UpsertEntity(conn, "ship", canonical, gameVersion, strAny(v["slug"]), "scw-ship-"+uuid)
+		canonical := anyx.First(anyx.String(v["game_name"]), name)
+		entityID, err := UpsertEntity(conn, "ship", canonical, gameVersion, anyx.String(v["slug"]), "scw-ship-"+uuid)
 		if err != nil {
 			return count, err
 		}
@@ -78,14 +80,14 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 		if canonical != name {
 			_ = UpsertAlias(conn, entityID, canonical, "en", scwAPISource)
 		}
-		if slug := strAny(v["slug"]); slug != "" {
+		if slug := anyx.String(v["slug"]); slug != "" {
 			_ = UpsertAlias(conn, entityID, slug, "en", scwAPISource)
 		}
-		if mfr := asStringMap(v["manufacturer"]); mfr != nil {
-			if mn := strAny(mfr["name"]); mn != "" {
+		if mfr := anyx.StringMap(v["manufacturer"]); mfr != nil {
+			if mn := anyx.String(mfr["name"]); mn != "" {
 				_ = UpsertFact(conn, entityID, "manufacturer", scwAPISource, gameVersion, &run, mn, nil, "")
 			}
-			if code := strAny(mfr["code"]); code != "" {
+			if code := anyx.String(mfr["code"]); code != "" {
 				_ = UpsertFact(conn, entityID, "manufacturer_code", scwAPISource, gameVersion, &run, code, nil, "")
 			}
 		}
@@ -103,7 +105,7 @@ func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVer
 				_ = UpsertFact(conn, entityID, pair[1]+"_zh", scwAPISource, gameVersion, &run, zh, nil, "")
 			}
 		}
-		foci := asAnySlice(v["foci"])
+		foci := anyx.Slice(v["foci"])
 		if len(foci) > 0 {
 			var labelsEN, labelsZH []string
 			for _, focus := range foci {
@@ -180,8 +182,8 @@ func ApplyScwBlueprints(conn DBTX, blueprints []map[string]any, runID int64) (in
 	run := runID
 	count := 0
 	for _, bp := range blueprints {
-		apiUUID := strings.TrimSpace(strAny(bp["uuid"]))
-		outputName := strings.TrimSpace(strAny(bp["output_name"]))
+		apiUUID := strings.TrimSpace(anyx.String(bp["uuid"]))
+		outputName := strings.TrimSpace(anyx.String(bp["output_name"]))
 		if apiUUID == "" || outputName == "" {
 			continue
 		}
@@ -197,24 +199,24 @@ func ApplyScwBlueprints(conn DBTX, blueprints []map[string]any, runID int64) (in
 		if n := maybeFloat(bp["craft_time_seconds"]); n != nil {
 			_ = UpsertFact(conn, entityID, "craft_time_seconds", scwBPSource, scwBPGameVersion, &run, "", n, "s")
 		}
-		if label := strAny(bp["craft_time_label"]); label != "" {
+		if label := anyx.String(bp["craft_time_label"]); label != "" {
 			_ = UpsertFact(conn, entityID, "craft_time_label", scwBPSource, scwBPGameVersion, &run, label, nil, "")
 		}
-		for _, ingRaw := range asAnySlice(bp["ingredients"]) {
-			ing := asStringMap(ingRaw)
+		for _, ingRaw := range anyx.Slice(bp["ingredients"]) {
+			ing := anyx.StringMap(ingRaw)
 			if ing == nil {
 				continue
 			}
-			matName := strings.TrimSpace(strAny(ing["name"]))
+			matName := strings.TrimSpace(anyx.String(ing["name"]))
 			if matName == "" {
 				continue
 			}
-			kind := strings.ToLower(firstNonEmpty(strAny(ing["kind"]), "resource"))
+			kind := strings.ToLower(anyx.First(anyx.String(ing["kind"]), "resource"))
 			entityKind := "item"
 			if kind == "resource" {
 				entityKind = "commodity"
 			}
-			matUUID := firstNonEmpty(strAny(ing["resource_type_uuid"]), strAny(ing["item_uuid"]))
+			matUUID := anyx.First(anyx.String(ing["resource_type_uuid"]), anyx.String(ing["item_uuid"]))
 			uuid := ""
 			if matUUID != "" {
 				uuid = "scw-mat-" + matUUID
@@ -276,13 +278,13 @@ func scwPaginate(client *http.Client, path string, pageSize int, delay time.Dura
 		if err := json.Unmarshal(body, &envelope); err != nil {
 			return nil, err
 		}
-		chunk := asAnySlice(envelope["data"])
+		chunk := anyx.Slice(envelope["data"])
 		for _, item := range chunk {
-			if m := asStringMap(item); m != nil {
+			if m := anyx.StringMap(item); m != nil {
 				out = append(out, m)
 			}
 		}
-		meta := asStringMap(envelope["meta"])
+		meta := anyx.StringMap(envelope["meta"])
 		last := page
 		if meta != nil {
 			if n := maybeFloat(meta["last_page"]); n != nil {

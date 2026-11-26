@@ -3,6 +3,8 @@ package orchestrate
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 // Projection is a primary-specific presentation of evidence.
@@ -43,7 +45,7 @@ func evidenceByTool(st *State, tool string) []map[string]any {
 		if asString(ev["tool"]) != tool {
 			continue
 		}
-		out = append(out, asMaps(ev["data"])...)
+		out = append(out, anyx.Maps(ev["data"])...)
 	}
 	return out
 }

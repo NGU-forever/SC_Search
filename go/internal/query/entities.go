@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 var compactFactKeys = map[string]struct{}{
@@ -61,11 +63,11 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 			return nil, nil
 		}
 		sort.SliceStable(matches, func(i, j int) bool {
-			pi, okI := entityPriority[str(matches[i]["kind"])]
+			pi, okI := entityPriority[anyx.String(matches[i]["kind"])]
 			if !okI {
 				pi = 99
 			}
-			pj, okJ := entityPriority[str(matches[j]["kind"])]
+			pj, okJ := entityPriority[anyx.String(matches[j]["kind"])]
 			if !okJ {
 				pj = 99
 			}
@@ -133,9 +135,9 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 	for _, item := range relMaps {
 		meta := item["meta_json"]
 		delete(item, "meta_json")
-		if meta != nil && str(meta) != "" {
+		if meta != nil && anyx.String(meta) != "" {
 			var parsed any
-			if err := json.Unmarshal([]byte(str(meta)), &parsed); err == nil {
+			if err := json.Unmarshal([]byte(anyx.String(meta)), &parsed); err == nil {
 				item["meta"] = parsed
 			} else {
 				item["meta"] = meta
@@ -147,7 +149,7 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 	if mode == "compact" {
 		filtered := make([]map[string]any, 0)
 		for _, f := range facts {
-			if _, ok := compactFactKeys[str(f["key"])]; ok {
+			if _, ok := compactFactKeys[anyx.String(f["key"])]; ok {
 				filtered = append(filtered, f)
 			}
 		}

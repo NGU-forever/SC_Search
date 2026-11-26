@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 # Report non-test Go file/function sizes under go/internal.
-# Report mode: always exits 0. Set SIZE_STRICT=1 to fail on budget violations.
+#
+# Modes:
+#   ./scripts/size_report.sh              # report only (always exits 0)
+#   SIZE_STRICT=1 ./scripts/size_report.sh  # fail on any budget violation
+#   SIZE_RATCHET=1 ./scripts/size_report.sh # fail on new/grown violations only
+#   ./scripts/size_report.sh --ratchet      # same as SIZE_RATCHET=1
+#
+# The ratchet baseline lives in scripts/size_baseline.txt and lists only known,
+# documented exceptions.
 set -euo pipefail
+
+if [ "${1:-}" = "--ratchet" ]; then
+  export SIZE_RATCHET=1
+fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 top="${SIZE_TOP:-15}"
@@ -14,6 +26,7 @@ import sys
 root = sys.argv[1]
 top_n = int(sys.argv[2])
 internal = os.path.join(root, "go", "internal")
+baseline_path = os.path.join(root, "scripts", "size_baseline.txt")
 file_budget = 500
 func_budget = 120
 
@@ -95,6 +108,55 @@ def mask_go(src: str) -> str:
     return "".join(out)
 
 
+def body_brace(masked: str, start: int) -> int:
+    """Return the index of the function body's opening brace.
+
+    Tracks parenthesis/bracket depth and struct{}/interface{} type literals so a
+    `map[string]struct{}` in the signature is not mistaken for the body. Returns
+    -1 for a body-less declaration.
+    """
+    i = start
+    n = len(masked)
+    paren = 0
+    bracket = 0
+    lit = 0
+    prev = ""
+    while i < n:
+        if masked.startswith("\nfunc ", i):
+            return -1
+        c = masked[i]
+        if c.isalnum() or c == "_":
+            j = i
+            while j < n and (masked[j].isalnum() or masked[j] == "_"):
+                j += 1
+            prev = masked[i:j]
+            i = j
+            continue
+        if c == "(":
+            paren += 1
+        elif c == ")":
+            if paren > 0:
+                paren -= 1
+        elif c == "[":
+            bracket += 1
+        elif c == "]":
+            if bracket > 0:
+                bracket -= 1
+        elif c == "{":
+            if paren > 0 or bracket > 0 or prev in ("struct", "interface"):
+                lit += 1
+            else:
+                return i
+        elif c == "}":
+            if lit > 0:
+                lit -= 1
+                prev = "}"
+        elif not c.isspace():
+            prev = c
+        i += 1
+    return -1
+
+
 def func_name(header: str) -> str:
     header = header.strip()
     m = re.match(r"func\s*\(([^)]*)\)\s*([A-Za-z_][A-Za-z0-9_]*)", header)
@@ -138,7 +200,7 @@ for dirpath, _dirnames, filenames in os.walk(internal):
 
         for m in re.finditer(r"(?m)^func\s", masked):
             start = m.start()
-            brace = masked.find("{", start)
+            brace = body_brace(masked, start)
             if brace < 0:
                 continue
             depth = 0
@@ -190,6 +252,68 @@ else:
     for count, rel, line, name in sorted(func_violations, reverse=True):
         print("    %7d  %s  %s:%d" % (count, name, rel, line))
 
-if os.environ.get("SIZE_STRICT") == "1" and (file_violations or func_violations):
+
+def load_baseline(path):
+    """Parse the ratchet baseline into (file, func) dicts."""
+    base_files = {}
+    base_funcs = {}
+    if not os.path.exists(path):
+        return None, None
+    with open(path, "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) == 3 and parts[0] == "file":
+                base_files[parts[1]] = int(parts[2])
+            elif len(parts) == 4 and parts[0] == "func":
+                base_funcs[(parts[1], parts[2])] = int(parts[3])
+            else:
+                print("  baseline parse error: %s" % raw.rstrip())
+                sys.exit(2)
+    return base_files, base_funcs
+
+
+ratchet = os.environ.get("SIZE_RATCHET") == "1"
+strict = os.environ.get("SIZE_STRICT") == "1"
+failed = False
+
+if ratchet:
+    base_files, base_funcs = load_baseline(baseline_path)
+    print()
+    print("Ratchet (baseline: scripts/size_baseline.txt):")
+    if base_files is None:
+        print("  FAIL: baseline file not found: %s" % baseline_path)
+        failed = True
+    else:
+        problems = []
+        for count, rel in sorted(file_violations, reverse=True):
+            if rel not in base_files:
+                problems.append("new file violation: %s (%d > %d)" % (rel, count, file_budget))
+            elif count > base_files[rel]:
+                problems.append("file grew: %s %d > baseline %d" % (rel, count, base_files[rel]))
+        for count, rel, line, name in sorted(func_violations, reverse=True):
+            key = (rel, name)
+            if key not in base_funcs:
+                problems.append("new function violation: %s (%s:%d, %d > %d)" % (name, rel, line, count, func_budget))
+            elif count > base_funcs[key]:
+                problems.append("function grew: %s (%s) %d > baseline %d" % (name, rel, count, base_funcs[key]))
+        seen_files = {rel for _, rel in file_violations}
+        seen_funcs = {(rel, name) for _, rel, _, name in func_violations}
+        for rel, lines in sorted(base_files.items()):
+            if rel not in seen_files:
+                print("  note: baseline entry is now within budget and can be removed: %s (%d)" % (rel, lines))
+        for (rel, name), lines in sorted(base_funcs.items()):
+            if (rel, name) not in seen_funcs:
+                print("  note: baseline entry is now within budget and can be removed: %s (%s, %d)" % (name, rel, lines))
+        if problems:
+            for p in problems:
+                print("  FAIL: " + p)
+            failed = True
+        else:
+            print("  OK: no new or grown violations (%d file / %d function exceptions)" % (len(base_files), len(base_funcs)))
+
+if (strict and (file_violations or func_violations)) or failed:
     sys.exit(1)
 PY

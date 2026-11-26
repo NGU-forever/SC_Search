@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/frankxiong/sc-search/internal/anyx"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/router"
 )
@@ -32,7 +33,7 @@ func classify(db *sql.DB, st *State) (Phase, string, error) {
 	}
 	intent, _ := plan["intent"].(string)
 	st.PlanIntent = intent
-	ents := asMaps(plan["entities"])
+	ents := anyx.Maps(plan["entities"])
 	suggested := query.SuggestedPrimary(query.ClassificationContext{
 		Intent: intent, Question: st.Question, Entities: ents,
 	})
@@ -73,7 +74,7 @@ func shouldBypass(st *State, intent string) bool {
 
 func slotsFromPlan(primary string, plan map[string]any, question string) map[string]any {
 	out := map[string]any{}
-	ents := asMaps(plan["entities"])
+	ents := anyx.Maps(plan["entities"])
 	if len(ents) == 0 {
 		return out
 	}
@@ -140,29 +141,9 @@ func mergeSlots(user, inferred map[string]any) map[string]any {
 	return out
 }
 
+// asString trims surrounding whitespace, unlike anyx.String, so it stays
+// package-local (call sites rely on the trimmed form for matching).
 func asString(v any) string {
 	s, _ := v.(string)
 	return strings.TrimSpace(s)
-}
-
-func asMaps(v any) []map[string]any {
-	switch t := v.(type) {
-	case []map[string]any:
-		return t
-	case []any:
-		out := make([]map[string]any, 0, len(t))
-		for _, item := range t {
-			if m, ok := item.(map[string]any); ok {
-				out = append(out, m)
-			}
-		}
-		return out
-	default:
-		return nil
-	}
-}
-
-func asBool(v any) bool {
-	b, _ := v.(bool)
-	return b
 }

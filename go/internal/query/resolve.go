@@ -3,6 +3,8 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 var kindRank = map[string]int{
@@ -115,12 +117,12 @@ func rankRows(items []map[string]any) []map[string]any {
 		return 99
 	}
 	sort.SliceStable(items, func(i, j int) bool {
-		ki := rankOf(str(items[i]["kind"]))
-		kj := rankOf(str(items[j]["kind"]))
+		ki := rankOf(anyx.String(items[i]["kind"]))
+		kj := rankOf(anyx.String(items[j]["kind"]))
 		if ki != kj {
 			return ki < kj
 		}
-		return str(items[i]["canonical_name"]) < str(items[j]["canonical_name"])
+		return anyx.String(items[i]["canonical_name"]) < anyx.String(items[j]["canonical_name"])
 	})
 	return items
 }

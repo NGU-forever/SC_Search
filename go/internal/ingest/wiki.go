@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 const wikiAPI = "https://starcitizen.tools/api.php"
@@ -221,12 +223,12 @@ func fetchWikiExtracts(client *http.Client, titles []string, delay time.Duration
 			if _, missing := page["missing"]; missing {
 				continue
 			}
-			extract := strings.TrimSpace(strAny(page["extract"]))
+			extract := strings.TrimSpace(anyx.String(page["extract"]))
 			if extract == "" {
 				continue
 			}
-			title := strAny(page["title"])
-			fullURL := strAny(page["fullurl"])
+			title := anyx.String(page["title"])
+			fullURL := anyx.String(page["fullurl"])
 			if fullURL == "" {
 				fullURL = "https://starcitizen.tools/" + strings.ReplaceAll(title, " ", "_")
 			}

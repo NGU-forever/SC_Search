@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"regexp"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 const LiveFallback = "4.10.3"
@@ -33,8 +35,8 @@ func LiveGameVersion(db *sql.DB) (string, error) {
 		return LiveFallback, err
 	}
 	for _, row := range rows {
-		if str(row["status"]) == "ok" {
-			if label := ShortLiveLabel(str(row["game_version"])); label != "" {
+		if anyx.String(row["status"]) == "ok" {
+			if label := ShortLiveLabel(anyx.String(row["game_version"])); label != "" {
 				return label, nil
 			}
 		}
@@ -85,14 +87,14 @@ func AnnotateFreshnessRows(db *sql.DB, rows []map[string]any) (annotated []map[s
 		for k, v := range row {
 			cp[k] = v
 		}
-		gv := ShortLiveLabel(str(cp["game_version"]))
+		gv := ShortLiveLabel(anyx.String(cp["game_version"]))
 		comparable := IsComparableGameVersion(gv)
 		stale := comparable && live != "" && gv != live
 		cp["as_of"] = live
 		cp["stale"] = stale
 		cp["version_comparable"] = comparable
 		if stale {
-			if src := str(cp["source"]); src != "" {
+			if src := anyx.String(cp["source"]); src != "" {
 				staleSources = append(staleSources, src)
 			}
 		}
@@ -104,18 +106,6 @@ func AnnotateFreshnessRows(db *sql.DB, rows []map[string]any) (annotated []map[s
 		"stale_sources": staleSources,
 	}
 	return out, meta
-}
-
-func str(v any) string {
-	if v == nil {
-		return ""
-	}
-	switch t := v.(type) {
-	case string:
-		return t
-	default:
-		return ""
-	}
 }
 
 // MetaFromRows copies game_version / sync timestamps from the first result row.
@@ -133,7 +123,7 @@ func MetaFromRows(rows []map[string]any) map[string]any {
 	} else if v, ok := first["finished_at"]; ok && v != nil {
 		meta["synced_at"] = v
 	}
-	if src, ok := first["source"]; ok && src != nil && str(src) != "" {
+	if src, ok := first["source"]; ok && src != nil && anyx.String(src) != "" {
 		meta["source"] = src
 	}
 	return meta
@@ -148,7 +138,7 @@ func AttachFreshness(db *sql.DB, meta map[string]any) map[string]any {
 	}
 	live, _ := LiveGameVersion(db)
 	out["as_of"] = live
-	rowVer := ShortLiveLabel(str(out["game_version"]))
+	rowVer := ShortLiveLabel(anyx.String(out["game_version"]))
 	if !IsComparableGameVersion(rowVer) {
 		out["stale"] = false
 		out["version_comparable"] = false

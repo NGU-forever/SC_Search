@@ -3,6 +3,8 @@ package ingest
 import (
 	"fmt"
 	"os"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 func ApplyUex(conn DBTX, runID int64, p UexPayload) (int, error) {
@@ -66,11 +68,11 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 
 	for _, t := range terminals {
 		uexID, ok := asIntID(t["id"])
-		name := firstNonEmpty(strAny(t["name"]), strAny(t["displayname"]), strAny(t["fullname"]))
+		name := anyx.First(anyx.String(t["name"]), anyx.String(t["displayname"]), anyx.String(t["fullname"]))
 		if !ok || name == "" {
 			continue
 		}
-		entityID, err := UpsertEntity(conn, "terminal", name, gameVersion, strAny(t["code"]), fmt.Sprintf("uex-terminal-%d", uexID))
+		entityID, err := UpsertEntity(conn, "terminal", name, gameVersion, anyx.String(t["code"]), fmt.Sprintf("uex-terminal-%d", uexID))
 		if err != nil {
 			return count, err
 		}
@@ -78,10 +80,10 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 		if err := UpsertAlias(conn, entityID, name, "en", uexSource); err != nil {
 			return count, err
 		}
-		sys := firstNonEmpty(
-			strAny(t["star_system_name"]),
-			strAny(t["system_name"]),
-			strAny(t["star_system"]),
+		sys := anyx.First(
+			anyx.String(t["star_system_name"]),
+			anyx.String(t["system_name"]),
+			anyx.String(t["star_system"]),
 			inferSystemFromTerminalName(name),
 		)
 		if sys != "" {
@@ -92,15 +94,15 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 	}
 	for _, c := range commodities {
 		uexID, ok := asIntID(c["id"])
-		name := strAny(c["name"])
+		name := anyx.String(c["name"])
 		if !ok || name == "" {
 			continue
 		}
-		uuid := strAny(c["uuid"])
+		uuid := anyx.String(c["uuid"])
 		if uuid == "" {
 			uuid = fmt.Sprintf("uex-commodity-%d", uexID)
 		}
-		entityID, err := UpsertEntity(conn, "commodity", name, gameVersion, strAny(c["slug"]), uuid)
+		entityID, err := UpsertEntity(conn, "commodity", name, gameVersion, anyx.String(c["slug"]), uuid)
 		if err != nil {
 			return count, err
 		}
@@ -119,7 +121,7 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 		commodityID, hasC := commodityIDs[cUEX]
 		terminalID, hasT := terminalIDs[tUEX]
 		if !hasC {
-			if cname := strAny(p["commodity_name"]); cname != "" {
+			if cname := anyx.String(p["commodity_name"]); cname != "" {
 				id, err := UpsertEntity(conn, "commodity", cname, gameVersion, "", fmt.Sprintf("uex-commodity-%d", cUEX))
 				if err != nil {
 					return count, err
@@ -131,7 +133,7 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 			}
 		}
 		if !hasT {
-			tname := firstNonEmpty(strAny(p["terminal_name"]), strAny(p["terminal_displayname"]))
+			tname := anyx.First(anyx.String(p["terminal_name"]), anyx.String(p["terminal_displayname"]))
 			if tname != "" {
 				id, err := UpsertEntity(conn, "terminal", tname, gameVersion, "", fmt.Sprintf("uex-terminal-%d", tUEX))
 				if err != nil {
@@ -146,7 +148,7 @@ func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, comm
 		if !hasC || !hasT {
 			continue
 		}
-		reported := firstNonEmpty(strAny(p["date_modified"]), strAny(p["date_added"]))
+		reported := anyx.First(anyx.String(p["date_modified"]), anyx.String(p["date_added"]))
 		if buy := maybeFloat(p["price_buy"]); buy != nil && *buy > 0 {
 			scu := maybeFloat(p["scu_buy"])
 			if scu == nil {
@@ -178,11 +180,11 @@ func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, termin
 
 	for _, t := range terminals {
 		uexID, ok := asIntID(t["id"])
-		name := firstNonEmpty(strAny(t["name"]), strAny(t["displayname"]), strAny(t["nickname"]))
+		name := anyx.First(anyx.String(t["name"]), anyx.String(t["displayname"]), anyx.String(t["nickname"]))
 		if !ok || name == "" {
 			continue
 		}
-		entityID, err := UpsertEntity(conn, "terminal", name, gameVersion, strAny(t["code"]), fmt.Sprintf("uex-terminal-%d", uexID))
+		entityID, err := UpsertEntity(conn, "terminal", name, gameVersion, anyx.String(t["code"]), fmt.Sprintf("uex-terminal-%d", uexID))
 		if err != nil {
 			return count, err
 		}
@@ -191,15 +193,15 @@ func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, termin
 	}
 	for _, v := range vehicles {
 		uexID, ok := asIntID(v["id"])
-		name := strAny(v["name"])
-		nameFull := firstNonEmpty(strAny(v["name_full"]), name)
+		name := anyx.String(v["name"])
+		nameFull := anyx.First(anyx.String(v["name_full"]), name)
 		if !ok || name == "" {
 			continue
 		}
 		shipID, found := findExistingShipID(conn, nameFull, name)
 		if !found {
 			var err error
-			shipID, err = UpsertEntity(conn, "ship", nameFull, gameVersion, strAny(v["slug"]), fmt.Sprintf("uex-vehicle-%d", uexID))
+			shipID, err = UpsertEntity(conn, "ship", nameFull, gameVersion, anyx.String(v["slug"]), fmt.Sprintf("uex-vehicle-%d", uexID))
 			if err != nil {
 				return count, err
 			}
@@ -222,7 +224,7 @@ func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, termin
 		shipID, hasS := vehicleIDs[vUEX]
 		terminalID, hasT := terminalIDs[tUEX]
 		if !hasS {
-			if vname := strAny(p["vehicle_name"]); vname != "" {
+			if vname := anyx.String(p["vehicle_name"]); vname != "" {
 				id, found := findExistingShipID(conn, vname)
 				if !found {
 					var err error
@@ -238,7 +240,7 @@ func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, termin
 			}
 		}
 		if !hasT {
-			if tname := strAny(p["terminal_name"]); tname != "" {
+			if tname := anyx.String(p["terminal_name"]); tname != "" {
 				id, err := UpsertEntity(conn, "terminal", tname, gameVersion, "", fmt.Sprintf("uex-terminal-%d", tUEX))
 				if err != nil {
 					return count, err
@@ -252,7 +254,7 @@ func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, termin
 		if !hasS || !hasT {
 			continue
 		}
-		reported := firstNonEmpty(strAny(p["date_modified"]), strAny(p["date_added"]))
+		reported := anyx.First(anyx.String(p["date_modified"]), anyx.String(p["date_added"]))
 		if err := ReplacePrice(conn, shipID, terminalID, "buy", *buy, uexSource, gameVersion, runID, nil, reported); err != nil {
 			return count, err
 		}

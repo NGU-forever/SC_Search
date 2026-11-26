@@ -4,15 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 func (a *scmdbApply) factions(payload map[string]any) error {
-	for guid, metaRaw := range asStringMap(payload["factions"]) {
-		meta := asStringMap(metaRaw)
+	for guid, metaRaw := range anyx.StringMap(payload["factions"]) {
+		meta := anyx.StringMap(metaRaw)
 		if meta == nil {
 			continue
 		}
-		name := firstNonEmpty(strAny(meta["name"]), guid)
+		name := anyx.First(anyx.String(meta["name"]), guid)
 		entityID, err := UpsertEntity(a.conn, "faction", name, a.version, "", "scmdb-faction-"+guid)
 		if err != nil {
 			return err
@@ -25,27 +27,27 @@ func (a *scmdbApply) factions(payload map[string]any) error {
 }
 
 func (a *scmdbApply) blueprintPools(payload map[string]any) error {
-	for poolGUID, poolRaw := range asStringMap(payload["blueprintPools"]) {
-		pool := asStringMap(poolRaw)
+	for poolGUID, poolRaw := range anyx.StringMap(payload["blueprintPools"]) {
+		pool := anyx.StringMap(poolRaw)
 		if pool == nil {
 			continue
 		}
-		poolName := firstNonEmpty(strAny(pool["name"]), poolGUID)
+		poolName := anyx.First(anyx.String(pool["name"]), poolGUID)
 		poolEntity, err := UpsertEntity(a.conn, "blueprint_pool", poolName, a.version, "", "scmdb-bppool-"+poolGUID)
 		if err != nil {
 			return err
 		}
 		_ = UpsertAlias(a.conn, poolEntity, poolName, "en", scmdbSource)
 		a.poolIDs[poolGUID] = poolEntity
-		_ = UpsertFact(a.conn, poolEntity, "source_tag", scmdbSource, a.version, &a.runID, strAny(pool["source"]), nil, "")
+		_ = UpsertFact(a.conn, poolEntity, "source_tag", scmdbSource, a.version, &a.runID, anyx.String(pool["source"]), nil, "")
 		a.count++
-		for _, bpRaw := range asAnySlice(pool["blueprints"]) {
-			bp := asStringMap(bpRaw)
+		for _, bpRaw := range anyx.Slice(pool["blueprints"]) {
+			bp := anyx.StringMap(bpRaw)
 			if bp == nil {
 				continue
 			}
-			bpName := firstNonEmpty(strAny(bp["name"]), strAny(bp["blueprintRecord"]), "unknown")
-			bpUUID := firstNonEmpty(strAny(bp["blueprintRecord"]), bpName)
+			bpName := anyx.First(anyx.String(bp["name"]), anyx.String(bp["blueprintRecord"]), "unknown")
+			bpUUID := anyx.First(anyx.String(bp["blueprintRecord"]), bpName)
 			bpEntity, err := UpsertEntity(a.conn, "blueprint", bpName, a.version, "", "scmdb-bp-"+bpUUID)
 			if err != nil {
 				return err
@@ -53,7 +55,7 @@ func (a *scmdbApply) blueprintPools(payload map[string]any) error {
 			_ = UpsertAlias(a.conn, bpEntity, bpName, "en", scmdbSource)
 			weight := maybeFloat(bp["weight"])
 			_ = UpsertFact(a.conn, bpEntity, "weight", scmdbSource, a.version, &a.runID, "", weight, "")
-			if ec := strAny(bp["entityClass"]); ec != "" {
+			if ec := anyx.String(bp["entityClass"]); ec != "" {
 				_ = UpsertFact(a.conn, bpEntity, "entity_class", scmdbSource, a.version, &a.runID, ec, nil, "")
 			}
 			_ = UpsertFact(a.conn, bpEntity, "pool_name", scmdbSource, a.version, &a.runID, poolName, nil, "")
@@ -65,13 +67,13 @@ func (a *scmdbApply) blueprintPools(payload map[string]any) error {
 }
 
 func (a *scmdbApply) locations(payload map[string]any) error {
-	locationPools := asStringMap(payload["locationPools"])
+	locationPools := anyx.StringMap(payload["locationPools"])
 	for locKey, locRaw := range locationPools {
-		loc := asStringMap(locRaw)
+		loc := anyx.StringMap(locRaw)
 		if loc == nil {
 			continue
 		}
-		name := strings.TrimSpace(firstNonEmpty(strAny(loc["name"]), locKey))
+		name := strings.TrimSpace(anyx.First(anyx.String(loc["name"]), locKey))
 		if name == "" || strings.HasPrefix(name, "@") {
 			continue
 		}
@@ -93,9 +95,9 @@ func (a *scmdbApply) locations(payload map[string]any) error {
 
 func (a *scmdbApply) missions(payload map[string]any) error {
 	contracts, _ := payload["contracts"].([]any)
-	locationPools := asStringMap(payload["locationPools"])
+	locationPools := anyx.StringMap(payload["locationPools"])
 	for _, cRaw := range contracts {
-		contract := asStringMap(cRaw)
+		contract := anyx.StringMap(cRaw)
 		if contract == nil {
 			continue
 		}
@@ -108,10 +110,10 @@ func (a *scmdbApply) missions(payload map[string]any) error {
 }
 
 func (a *scmdbApply) applyContract(contract map[string]any, locationPools map[string]any) error {
-	debugName := strAny(contract["debugName"])
-	title := firstNonEmpty(strAny(contract["title"]), debugName, strAny(contract["id"]), "mission")
-	canonical := firstNonEmpty(debugName, title)
-	missionID := firstNonEmpty(strAny(contract["id"]), debugName, title)
+	debugName := anyx.String(contract["debugName"])
+	title := anyx.First(anyx.String(contract["title"]), debugName, anyx.String(contract["id"]), "mission")
+	canonical := anyx.First(debugName, title)
+	missionID := anyx.First(anyx.String(contract["id"]), debugName, title)
 	entityID, err := UpsertEntity(a.conn, "mission", canonical, a.version, debugName, "scmdb-mission-"+missionID)
 	if err != nil {
 		return err
@@ -134,7 +136,7 @@ func (a *scmdbApply) missionFacts(contract map[string]any, entityID int64, debug
 	a.factNum(entityID, "lifetime", contract["timeToComplete"], "hr")
 	a.factText(entityID, "cooldown_unit", "min")
 	a.factText(entityID, "lifetime_unit", "hr")
-	a.factText(entityID, "mission_type", firstNonEmpty(strAny(contract["missionType"]), strAny(contract["missionTypeKey"])))
+	a.factText(entityID, "mission_type", anyx.First(anyx.String(contract["missionType"]), anyx.String(contract["missionTypeKey"])))
 	a.factText(entityID, "category", contract["category"])
 	a.factText(entityID, "contractor", contract["contractorName"])
 	a.factText(entityID, "debug_name", contract["debugName"])
@@ -166,11 +168,11 @@ func (a *scmdbApply) missionFacts(contract map[string]any, entityID int64, debug
 			a.factText(entityID, "systems", fmt.Sprint(systems))
 		}
 	}
-	if minStanding := asStringMap(contract["minStanding"]); minStanding != nil {
+	if minStanding := anyx.StringMap(contract["minStanding"]); minStanding != nil {
 		a.factText(entityID, "reputation_rank", minStanding["name"])
 		a.factNum(entityID, "reputation_min", minStanding["minReputation"], "")
 	}
-	if maxStanding := asStringMap(contract["maxStanding"]); maxStanding != nil {
+	if maxStanding := anyx.StringMap(contract["maxStanding"]); maxStanding != nil {
 		a.factText(entityID, "reputation_rank_max", maxStanding["name"])
 		a.factNum(entityID, "reputation_max", maxStanding["minReputation"], "")
 	}
@@ -231,7 +233,7 @@ func (a *scmdbApply) missionSiteFacts(contract map[string]any, entityID int64, l
 }
 
 func (a *scmdbApply) missionRelations(contract map[string]any, entityID int64) error {
-	if fg := strAny(contract["factionGuid"]); fg != "" {
+	if fg := anyx.String(contract["factionGuid"]); fg != "" {
 		if fid, ok := a.factionIDs[fg]; ok {
 			_ = InsertRelation(a.conn, entityID, fid, "mission_faction", scmdbSource, a.version, nil, "")
 		}
@@ -241,17 +243,17 @@ func (a *scmdbApply) missionRelations(contract map[string]any, entityID int64) e
 			_ = InsertRelation(a.conn, entityID, toID, "mission_location", scmdbSource, a.version, nil, "")
 		}
 	}
-	for _, rewardRaw := range asAnySlice(contract["blueprintRewards"]) {
-		reward := asStringMap(rewardRaw)
+	for _, rewardRaw := range anyx.Slice(contract["blueprintRewards"]) {
+		reward := anyx.StringMap(rewardRaw)
 		if reward == nil {
 			continue
 		}
-		poolGUID := strAny(reward["blueprintPool"])
+		poolGUID := anyx.String(reward["blueprintPool"])
 		poolEntity, ok := a.poolIDs[poolGUID]
-		if !ok && strAny(reward["poolName"]) != "" {
+		if !ok && anyx.String(reward["poolName"]) != "" {
 			var err error
-			poolEntity, err = UpsertEntity(a.conn, "blueprint_pool", strAny(reward["poolName"]), a.version, "",
-				"scmdb-bppool-"+firstNonEmpty(poolGUID, strAny(reward["poolName"])))
+			poolEntity, err = UpsertEntity(a.conn, "blueprint_pool", anyx.String(reward["poolName"]), a.version, "",
+				"scmdb-bppool-"+anyx.First(poolGUID, anyx.String(reward["poolName"])))
 			if err != nil {
 				return err
 			}
@@ -265,13 +267,13 @@ func (a *scmdbApply) missionRelations(contract map[string]any, entityID int64) e
 		meta, _ := json.Marshal(map[string]any{"poolName": reward["poolName"], "trigger": reward["trigger"]})
 		_ = InsertRelation(a.conn, entityID, poolEntity, "mission_reward_blueprint_pool", scmdbSource, a.version, chance, string(meta))
 	}
-	for _, itemRaw := range asAnySlice(contract["itemRewards"]) {
-		item := asStringMap(itemRaw)
+	for _, itemRaw := range anyx.Slice(contract["itemRewards"]) {
+		item := anyx.StringMap(itemRaw)
 		if item == nil {
 			continue
 		}
-		itemName := firstNonEmpty(strAny(item["name"]), strAny(item["entityClass"]), "item")
-		itemUUID := firstNonEmpty(strAny(item["entityClass"]), itemName)
+		itemName := anyx.First(anyx.String(item["name"]), anyx.String(item["entityClass"]), "item")
+		itemUUID := anyx.First(anyx.String(item["entityClass"]), itemName)
 		itemEntity, err := UpsertEntity(a.conn, "item", itemName, a.version, "", "scmdb-item-"+itemUUID)
 		if err != nil {
 			return err

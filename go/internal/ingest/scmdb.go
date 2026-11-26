@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 const (
@@ -22,7 +24,7 @@ func SyncScmdbPayload(conn *sql.DB, payload map[string]any) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	gv := firstNonEmpty(strAny(payload["version"]), "unknown")
+	gv := anyx.First(anyx.String(payload["version"]), "unknown")
 	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
 		return ApplyScmdbPayload(tx, payload, runID, gv)
 	})
@@ -50,23 +52,23 @@ func SyncScmdbLive(conn *sql.DB, repoRoot, channel, version string) (int, error)
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
 	}
-	raw, err := scmdbGetJSON(client, strAny(selected["file"]))
+	raw, err := scmdbGetJSON(client, anyx.String(selected["file"]))
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
 	}
-	payload := asStringMap(raw)
+	payload := anyx.StringMap(raw)
 	if payload == nil {
-		err := fmt.Errorf("%s was not a JSON object", strAny(selected["file"]))
+		err := fmt.Errorf("%s was not a JSON object", anyx.String(selected["file"]))
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
 	}
 	rawDir := filepath.Join(repoRoot, "data", "raw")
 	_ = os.MkdirAll(rawDir, 0o755)
 	if b, err := json.Marshal(payload); err == nil {
-		_ = os.WriteFile(filepath.Join(rawDir, strAny(selected["file"])), b, 0o644)
+		_ = os.WriteFile(filepath.Join(rawDir, anyx.String(selected["file"])), b, 0o644)
 	}
-	gv := firstNonEmpty(strAny(payload["version"]), strAny(selected["version"]))
+	gv := anyx.First(anyx.String(payload["version"]), anyx.String(selected["version"]))
 	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
 		return ApplyScmdbPayload(tx, payload, runID, gv)
 	})

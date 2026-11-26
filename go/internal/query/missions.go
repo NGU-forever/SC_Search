@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 var (
@@ -198,7 +200,7 @@ func ListMissionsOpts(db *sql.DB, faction, rankKeyword, system string, limit int
 	for _, row := range items {
 		eid := asInt64(row["entity_id"])
 		aliases := aliasMap[eid]
-		canonical := str(row["canonical_name"])
+		canonical := anyx.String(row["canonical_name"])
 		haystacks := haystacksForRow(canonical, aliases)
 		if !tokensMatch(haystacks, tokens) {
 			continue
@@ -211,8 +213,8 @@ func ListMissionsOpts(db *sql.DB, faction, rankKeyword, system string, limit int
 		if scoredRows[i].score != scoredRows[j].score {
 			return scoredRows[i].score > scoredRows[j].score
 		}
-		ri := asFloat(scoredRows[i].row["reward_uec"])
-		rj := asFloat(scoredRows[j].row["reward_uec"])
+		ri := anyx.Float(scoredRows[i].row["reward_uec"])
+		rj := anyx.Float(scoredRows[j].row["reward_uec"])
 		return ri > rj
 	})
 	matchTotal := len(scoredRows)
@@ -253,10 +255,10 @@ func contractorPattern(db *sql.DB, faction string) (string, error) {
 		return "", err
 	}
 	if m := pickEntity(matches, "faction"); m != nil {
-		return str(m["canonical_name"]), nil
+		return anyx.String(m["canonical_name"]), nil
 	}
 	if len(matches) > 0 {
-		return str(matches[0]["canonical_name"]), nil
+		return anyx.String(matches[0]["canonical_name"]), nil
 	}
 	return text, nil
 }
@@ -377,17 +379,4 @@ func cloneWithout(m map[string]any, drop string) map[string]any {
 		out[k] = v
 	}
 	return out
-}
-
-func asFloat(v any) float64 {
-	switch t := v.(type) {
-	case float64:
-		return t
-	case int64:
-		return float64(t)
-	case int:
-		return float64(t)
-	default:
-		return 0
-	}
 }

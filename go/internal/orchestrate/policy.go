@@ -3,6 +3,7 @@ package orchestrate
 import (
 	"strings"
 
+	"github.com/frankxiong/sc-search/internal/anyx"
 	"github.com/frankxiong/sc-search/internal/query"
 	"github.com/frankxiong/sc-search/internal/router"
 )
@@ -64,16 +65,16 @@ func browserGateFor(primary, path string, searchTerm string, fromAnswer map[stri
 }
 
 func mergeBrowser(base BrowserGate, b map[string]any) BrowserGate {
-	if asBool(b["needed"]) {
+	if anyx.Bool(b["needed"]) {
 		base.Needed = true
 	}
-	if asBool(b["wait_confirm"]) {
+	if anyx.Bool(b["wait_confirm"]) {
 		base.WaitConfirm = true
 	}
-	if asBool(b["leave_open"]) {
+	if anyx.Bool(b["leave_open"]) {
 		base.LeaveOpen = true
 	}
-	if asBool(b["handoff_to_user"]) {
+	if anyx.Bool(b["handoff_to_user"]) {
 		base.HandoffToUser = true
 	}
 	if s := asString(b["site"]); s != "" {
@@ -116,7 +117,7 @@ func canonicalFromEvidence(evidence []map[string]any) string {
 		if asString(ev["tool"]) != "sc_resolve_name" {
 			continue
 		}
-		rows := asMaps(ev["data"])
+		rows := anyx.Maps(ev["data"])
 		if len(rows) == 0 {
 			continue
 		}
@@ -133,7 +134,7 @@ func applyRetry(st *State) bool {
 	if wr == nil {
 		return false
 	}
-	if asBool(wr["replan_suggested"]) && st.ReplanCount < DefaultPolicy().MaxReplan {
+	if anyx.Bool(wr["replan_suggested"]) && st.ReplanCount < DefaultPolicy().MaxReplan {
 		next := replanPrimary(st)
 		if next == "" || next == st.Primary {
 			st.Warnings = append(st.Warnings, "retry_exhausted: no reliable primary for replan")
@@ -146,7 +147,7 @@ func applyRetry(st *State) bool {
 		st.RetryKind = "replan"
 		return true
 	}
-	if asBool(wr["slot_retry_suggested"]) && !asBool(wr["replan_suggested"]) &&
+	if anyx.Bool(wr["slot_retry_suggested"]) && !anyx.Bool(wr["replan_suggested"]) &&
 		st.SlotRetryCount < DefaultPolicy().MaxSlotRetry {
 		changed := applySlotRetry(st)
 		if !changed {
@@ -218,7 +219,7 @@ func hasShipEvidence(st *State) bool {
 	for _, ev := range st.Evidence {
 		tool := asString(ev["tool"])
 		if tool == "sc_resolve_name" {
-			for _, row := range asMaps(ev["data"]) {
+			for _, row := range anyx.Maps(ev["data"]) {
 				if asString(row["kind"]) == "ship" {
 					return true
 				}

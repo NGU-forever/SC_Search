@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 func scmdbGetJSON(client *http.Client, path string) (any, error) {
@@ -60,8 +62,8 @@ func resolveScmdbVersion(client *http.Client, channel, version string) (map[stri
 	}
 	var versions []map[string]any
 	for _, item := range arr {
-		m := asStringMap(item)
-		if m == nil || strAny(m["version"]) == "" || strAny(m["file"]) == "" {
+		m := anyx.StringMap(item)
+		if m == nil || anyx.String(m["version"]) == "" || anyx.String(m["file"]) == "" {
 			continue
 		}
 		versions = append(versions, m)
@@ -72,7 +74,7 @@ func resolveScmdbVersion(client *http.Client, channel, version string) (map[stri
 	if version != "" {
 		needle := strings.ToLower(strings.TrimSpace(version))
 		for _, item := range versions {
-			ver := strings.ToLower(strAny(item["version"]))
+			ver := strings.ToLower(anyx.String(item["version"]))
 			if ver == needle || strings.Contains(ver, needle) {
 				return item, nil
 			}
@@ -91,7 +93,7 @@ func resolveScmdbVersion(client *http.Client, channel, version string) (map[stri
 	}
 	needle := "-" + channel + "."
 	for _, item := range versions {
-		if strings.Contains(strings.ToLower(strAny(item["version"])), needle) {
+		if strings.Contains(strings.ToLower(anyx.String(item["version"])), needle) {
 			return item, nil
 		}
 	}

@@ -1,6 +1,6 @@
 # 代码体积与结构重构设计
 
-状态：待实施  
+状态：已实施（阶段 0–9 完成；阶段 6 仅完成两处纯移动，`plan.go` 动作规则与类型化仍由分类文档推进）  
 日期：2026-11-26  
 优先级：P1（在工程保障之后、与分类维护性并行）  
 范围：`go/internal` 下超大文件与超长函数的拆分、重复工具函数收敛、体积预算与回归锁定  
@@ -60,7 +60,7 @@
 
 ### 2.4 动态类型
 
-`map[string]any` 在非测试代码中约 491 处，集中在 `plan.go`（80）、`answer_paths.go`（49）、`answer.go`（48）、`mcp/server.go`（32）、`worker/executor.go`（30）。MCP 边界使用动态 JSON 是合理的；内部扩散的问题归分类维护性文档处理，本文只规定**不再新增**。
+`map[string]any` 在非测试代码中约 491 处（2026-11-26 初稿口径），集中在 `plan.go`（80）、`answer_paths.go`（49）、`answer.go`（48）、`mcp/server.go`（32）、`worker/executor.go`（30）。B2 完成后实测为 654 处 / 555 行（B2 前为 630 处 / 535 行；+24 处全部来自本阶段要求的 `anyx` 签名与 `answerContext` / `answerResult` 字段）。MCP 边界使用动态 JSON 是合理的；内部扩散的问题归分类维护性文档处理，本文只规定**不再新增**。
 
 ## 3. 目标与非目标
 
@@ -388,13 +388,13 @@ var nativeTools = map[string]nativeFn{
 
 ### 6.3 完成定义
 
-- [ ] 特征快照与 stdio 契约测试在 CI 通过，且拆分过程中从未被修改以“迁就”重构
-- [ ] `AnswerQuestion` ≤ 120 行，每个 Intent 有独立处理函数与单测
-- [ ] `NewServer` ≤ 60 行，工具按组注册
-- [ ] `ApplyScmdbPayload` ≤ 80 行，阶段函数各自可测
-- [ ] `anyx` 就位，三个 `firstNonEmpty` 已消除
-- [ ] 体积报告运行于 CI，棘轮基线已提交
-- [ ] `go test ./...`、黄金评测、MCP 抽问均无回归
+- [x] 特征快照（`fresh.json` / `stale.json`，零 diff）与 stdio 契约测试在 CI 通过，且拆分过程中从未被修改以“迁就”重构
+- [x] `AnswerQuestion` ≤ 120 行（63 行），各 Intent 有独立处理函数；每个 Intent 的输出由特征快照逐条锁定（未另写逐 Intent 单测）
+- [x] `NewServer` ≤ 60 行（14 行），工具按组注册
+- [x] `ApplyScmdbPayload` ≤ 80 行（25 行），阶段函数各自可测
+- [x] `anyx` 就位，三个 `firstNonEmpty` 已消除（0 处定义），边界输入有对照测试
+- [x] 体积报告运行于 CI，棘轮基线（`scripts/size_baseline.txt`）已提交，仅保留 `QueryPlan` / `EntityFacts` / `ApplyLocalizationMaps` 三个已说明例外
+- [x] `go test ./...`、黄金评测、MCP 抽问均无回归
 
 ## 7. 风险与回退
 

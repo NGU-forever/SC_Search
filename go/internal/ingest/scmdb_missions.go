@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 func enemyShipCounts(shipEncounters any) (min *float64, max *float64) {
@@ -63,21 +65,21 @@ func missionLocationIDs(contract map[string]any) []string {
 		seen[key] = struct{}{}
 		out = append(out, key)
 	}
-	for _, lid := range asAnySlice(contract["locations"]) {
+	for _, lid := range anyx.Slice(contract["locations"]) {
 		add(lid)
 	}
-	for _, lid := range asAnySlice(contract["destinations"]) {
+	for _, lid := range anyx.Slice(contract["destinations"]) {
 		add(lid)
 	}
-	for _, block := range asAnySlice(contract["locationSets"]) {
+	for _, block := range anyx.Slice(contract["locationSets"]) {
 		bm, _ := block.(map[string]any)
 		if bm == nil {
 			continue
 		}
-		for _, lid := range asAnySlice(bm["locations"]) {
+		for _, lid := range anyx.Slice(bm["locations"]) {
 			add(lid)
 		}
-		for _, lid := range asAnySlice(bm["destinations"]) {
+		for _, lid := range anyx.Slice(bm["destinations"]) {
 			add(lid)
 		}
 	}
@@ -100,14 +102,14 @@ func siteNamesFromLocationIDs(ids []string, locationPools map[string]any, limit 
 		if loc == nil {
 			continue
 		}
-		name := strings.TrimSpace(strAny(loc["name"]))
+		name := strings.TrimSpace(anyx.String(loc["name"]))
 		if name == "" || strings.HasPrefix(name, "@") {
 			continue
 		}
 		if _, ok := seen[name]; ok {
 			continue
 		}
-		if !keepMissionSiteName(name, strAny(loc["type"])) {
+		if !keepMissionSiteName(name, anyx.String(loc["type"])) {
 			continue
 		}
 		seen[name] = struct{}{}
@@ -128,11 +130,11 @@ func missionSiteNames(contract map[string]any, locationPools map[string]any) []s
 func missionSitePoolByRegion(contract map[string]any, locationPools map[string]any) map[string][]string {
 	var regions []string
 	if pyro := contract["pyroRegion"]; pyro != nil {
-		for _, r := range asAnySlice(pyro) {
+		for _, r := range anyx.Slice(pyro) {
 			regions = append(regions, fmt.Sprint(r))
 		}
 	}
-	sets := asAnySlice(contract["locationSets"])
+	sets := anyx.Slice(contract["locationSets"])
 	out := map[string][]string{}
 	if len(regions) > 0 && len(sets) == len(regions) {
 		for i, region := range regions {
@@ -153,10 +155,10 @@ func missionSitePoolByRegion(contract map[string]any, locationPools map[string]a
 				seen[key] = struct{}{}
 				ids = append(ids, key)
 			}
-			for _, lid := range asAnySlice(block["locations"]) {
+			for _, lid := range anyx.Slice(block["locations"]) {
 				add(lid)
 			}
-			for _, lid := range asAnySlice(block["destinations"]) {
+			for _, lid := range anyx.Slice(block["destinations"]) {
 				add(lid)
 			}
 			names := siteNamesFromLocationIDs(ids, locationPools, 25)
@@ -183,23 +185,6 @@ func missionDisambiguationTags(debugName, canonical string) (regionTag, difficul
 		}
 	}
 	return "", ""
-}
-
-func asAnySlice(v any) []any {
-	if v == nil {
-		return nil
-	}
-	if s, ok := v.([]any); ok {
-		return s
-	}
-	return nil
-}
-
-func asStringMap(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	return nil
 }
 
 // ApplyScmdbPayload mirrors Python apply_scmdb_payload.

@@ -23,147 +23,189 @@ func NewNativeInvoker(db *sql.DB) Invoker {
 	}
 }
 
+// nativeFn runs one Go query tool and returns its MCP envelope. The bool is
+// always true; it mirrors tryNative's found/not-found contract.
+type nativeFn func(db *sql.DB, args map[string]any) (map[string]any, bool)
+
+// nativeTools is the registry of tools served without Python.
+var nativeTools = map[string]nativeFn{
+	"sc_resolve_name":    nativeResolveName,
+	"sc_best_prices":     nativeBestPrices,
+	"sc_terminal_prices": nativeTerminalPrices,
+	"sc_data_freshness":  nativeDataFreshness,
+	"sc_entity_facts":    nativeEntityFacts,
+	"sc_list_missions":   nativeListMissions,
+	"sc_locations":       nativeListLocations,
+	"sc_search_docs":     nativeSearchDocs,
+	"sc_intents":         nativeIntents,
+	"sc_query_plan":      nativeQueryPlan,
+	"sc_answer":          nativeAnswer,
+}
+
 func tryNative(db *sql.DB, tool string, args map[string]any) (map[string]any, bool) {
-	switch tool {
-	case "sc_resolve_name":
-		text, _ := args["text"].(string)
-		data, err := query.ResolveName(db, text)
-		if err != nil {
-			return errEnv(err), true
-		}
-		return okEnv(data, map[string]any{}), true
-	case "sc_best_prices":
-		commodity, _ := args["commodity"].(string)
-		side, _ := args["side"].(string)
-		if side == "" {
-			side = "sell"
-		}
-		system, _ := args["system"].(string)
-		limit := argInt(args["limit"], 10)
-		data, err := query.BestPrices(db, commodity, side, system, limit)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if len(data) == 0 {
-			return noMatchEnv(fmt.Sprintf("no prices for commodity=%q side=%q", commodity, side), []any{}), true
-		}
-		meta := query.AttachFreshness(db, query.MetaFromRows(data))
-		meta["source"] = "uex"
-		return okEnv(data, meta), true
-	case "sc_terminal_prices":
-		terminal, _ := args["terminal"].(string)
-		side, _ := args["side"].(string)
-		data, err := query.TerminalPrices(db, terminal, side)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if len(data) == 0 {
-			return noMatchEnv(fmt.Sprintf("no prices for terminal=%q", terminal), []any{}), true
-		}
-		meta := query.AttachFreshness(db, query.MetaFromRows(data))
-		meta["source"] = "uex"
-		return okEnv(data, meta), true
-	case "sc_data_freshness":
-		source, _ := args["source"].(string)
-		data, err := query.DataFreshness(db, source)
-		if err != nil {
-			return errEnv(err), true
-		}
-		annotated, meta := query.AnnotateFreshnessRows(db, data)
-		return okEnv(annotated, meta), true
-	case "sc_entity_facts":
-		name, _ := args["name_or_id"].(string)
-		detail, _ := args["detail"].(string)
-		if detail == "" {
-			detail = "compact" // P0: default slim for LLM clients / worker
-		}
-		data, err := query.EntityFacts(db, name, detail)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if data == nil {
-			return noMatchEnv(fmt.Sprintf("entity not found: %q", name), map[string]any{}), true
-		}
-		meta := map[string]any{}
-		if ent, ok := data["entity"].(map[string]any); ok {
-			meta["game_version"] = ent["game_version"]
-		}
-		return okEnv(data, query.AttachFreshness(db, meta)), true
-	case "sc_list_missions":
-		faction, _ := args["faction"].(string)
-		rank, _ := args["rank_keyword"].(string)
-		system, _ := args["system"].(string)
-		limit := argInt(args["limit"], query.DefaultMissionLimit)
-		preferFee := argBool(args["prefer_fee"], false)
-		list, err := query.ListMissionsOpts(db, faction, rank, system, limit, preferFee)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if len(list.Rows) == 0 {
-			return noMatchEnv("no missions matched", []any{}), true
-		}
-		meta := query.AttachFreshness(db, query.MetaFromRows(list.Rows))
-		meta["total"] = list.Total
-		meta["truncated"] = list.Truncated
-		meta["limit"] = list.Limit
-		return okEnv(list.Rows, meta), true
-	case "sc_locations":
-		q, _ := args["query"].(string)
-		system, _ := args["system"].(string)
-		locType, _ := args["location_type"].(string)
-		limit := argInt(args["limit"], 20)
-		data, err := query.ListLocations(db, q, system, locType, limit)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if len(data) == 0 {
-			return noMatchEnv("no locations matched", []any{}), true
-		}
-		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
-	case "sc_search_docs":
-		q, _ := args["query"].(string)
-		limit := argInt(args["limit"], 5)
-		data, err := query.SearchDocs(db, q, limit)
-		if err != nil {
-			return errEnv(err), true
-		}
-		if len(data) == 0 {
-			return noMatchEnv(fmt.Sprintf("no documents matched query=%q", q), []any{}), true
-		}
-		return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
-	case "sc_intents":
-		data, err := query.IntentsCatalog()
-		if err != nil {
-			return errEnv(err), true
-		}
-		return okEnv(data, map[string]any{}), true
-	case "sc_query_plan":
-		question, _ := args["question"].(string)
-		hint, _ := args["hint_entity"].(string)
-		data, err := query.QueryPlan(db, question, hint)
-		if err != nil {
-			return errEnv(err), true
-		}
-		return okEnv(data, map[string]any{}), true
-	case "sc_answer":
-		question, _ := args["question"].(string)
-		detail, _ := args["detail_level"].(string)
-		if detail == "" {
-			detail = "brief"
-		}
-		hint, _ := args["hint_entity"].(string)
-		data, err := query.AnswerQuestion(db, question, detail, hint)
-		if err != nil {
-			return errEnv(err), true
-		}
-		meta := map[string]any{}
-		if gv, ok := data["live_game_version"]; ok {
-			meta["game_version"] = gv
-		}
-		return okEnv(data, query.AttachFreshness(db, meta)), true
-	default:
+	fn, ok := nativeTools[tool]
+	if !ok {
 		return nil, false
 	}
+	return fn(db, args)
+}
+
+func nativeResolveName(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	text, _ := args["text"].(string)
+	data, err := query.ResolveName(db, text)
+	if err != nil {
+		return errEnv(err), true
+	}
+	return okEnv(data, map[string]any{}), true
+}
+
+func nativeBestPrices(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	commodity, _ := args["commodity"].(string)
+	side, _ := args["side"].(string)
+	if side == "" {
+		side = "sell"
+	}
+	system, _ := args["system"].(string)
+	limit := argInt(args["limit"], 10)
+	data, err := query.BestPrices(db, commodity, side, system, limit)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if len(data) == 0 {
+		return noMatchEnv(fmt.Sprintf("no prices for commodity=%q side=%q", commodity, side), []any{}), true
+	}
+	meta := query.AttachFreshness(db, query.MetaFromRows(data))
+	meta["source"] = "uex"
+	return okEnv(data, meta), true
+}
+
+func nativeTerminalPrices(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	terminal, _ := args["terminal"].(string)
+	side, _ := args["side"].(string)
+	data, err := query.TerminalPrices(db, terminal, side)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if len(data) == 0 {
+		return noMatchEnv(fmt.Sprintf("no prices for terminal=%q", terminal), []any{}), true
+	}
+	meta := query.AttachFreshness(db, query.MetaFromRows(data))
+	meta["source"] = "uex"
+	return okEnv(data, meta), true
+}
+
+func nativeDataFreshness(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	source, _ := args["source"].(string)
+	data, err := query.DataFreshness(db, source)
+	if err != nil {
+		return errEnv(err), true
+	}
+	annotated, meta := query.AnnotateFreshnessRows(db, data)
+	return okEnv(annotated, meta), true
+}
+
+func nativeEntityFacts(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	name, _ := args["name_or_id"].(string)
+	detail, _ := args["detail"].(string)
+	if detail == "" {
+		detail = "compact" // P0: default slim for LLM clients / worker
+	}
+	data, err := query.EntityFacts(db, name, detail)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if data == nil {
+		return noMatchEnv(fmt.Sprintf("entity not found: %q", name), map[string]any{}), true
+	}
+	meta := map[string]any{}
+	if ent, ok := data["entity"].(map[string]any); ok {
+		meta["game_version"] = ent["game_version"]
+	}
+	return okEnv(data, query.AttachFreshness(db, meta)), true
+}
+
+func nativeListMissions(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	faction, _ := args["faction"].(string)
+	rank, _ := args["rank_keyword"].(string)
+	system, _ := args["system"].(string)
+	limit := argInt(args["limit"], query.DefaultMissionLimit)
+	preferFee := argBool(args["prefer_fee"], false)
+	list, err := query.ListMissionsOpts(db, faction, rank, system, limit, preferFee)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if len(list.Rows) == 0 {
+		return noMatchEnv("no missions matched", []any{}), true
+	}
+	meta := query.AttachFreshness(db, query.MetaFromRows(list.Rows))
+	meta["total"] = list.Total
+	meta["truncated"] = list.Truncated
+	meta["limit"] = list.Limit
+	return okEnv(list.Rows, meta), true
+}
+
+func nativeListLocations(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	q, _ := args["query"].(string)
+	system, _ := args["system"].(string)
+	locType, _ := args["location_type"].(string)
+	limit := argInt(args["limit"], 20)
+	data, err := query.ListLocations(db, q, system, locType, limit)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if len(data) == 0 {
+		return noMatchEnv("no locations matched", []any{}), true
+	}
+	return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
+}
+
+func nativeSearchDocs(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	q, _ := args["query"].(string)
+	limit := argInt(args["limit"], 5)
+	data, err := query.SearchDocs(db, q, limit)
+	if err != nil {
+		return errEnv(err), true
+	}
+	if len(data) == 0 {
+		return noMatchEnv(fmt.Sprintf("no documents matched query=%q", q), []any{}), true
+	}
+	return okEnv(data, query.AttachFreshness(db, query.MetaFromRows(data))), true
+}
+
+func nativeIntents(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	data, err := query.IntentsCatalog()
+	if err != nil {
+		return errEnv(err), true
+	}
+	return okEnv(data, map[string]any{}), true
+}
+
+func nativeQueryPlan(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	question, _ := args["question"].(string)
+	hint, _ := args["hint_entity"].(string)
+	data, err := query.QueryPlan(db, question, hint)
+	if err != nil {
+		return errEnv(err), true
+	}
+	return okEnv(data, map[string]any{}), true
+}
+
+func nativeAnswer(db *sql.DB, args map[string]any) (map[string]any, bool) {
+	question, _ := args["question"].(string)
+	detail, _ := args["detail_level"].(string)
+	if detail == "" {
+		detail = "brief"
+	}
+	hint, _ := args["hint_entity"].(string)
+	data, err := query.AnswerQuestion(db, question, detail, hint)
+	if err != nil {
+		return errEnv(err), true
+	}
+	meta := map[string]any{}
+	if gv, ok := data["live_game_version"]; ok {
+		meta["game_version"] = gv
+	}
+	return okEnv(data, query.AttachFreshness(db, meta)), true
 }
 
 func okEnv(data any, meta map[string]any) map[string]any {

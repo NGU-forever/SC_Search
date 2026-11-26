@@ -33,3 +33,6 @@ jobs:
 
       - name: Test
         run: cd go && go test ./... -count=1
+
+      - name: Size ratchet
+        run: SIZE_RATCHET=1 ./scripts/size_report.sh

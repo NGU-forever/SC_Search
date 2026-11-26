@@ -3,6 +3,8 @@ package router
 import (
 	"strconv"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 var skipInWorker = map[string]struct{}{"sc_answer": {}}
@@ -75,9 +77,9 @@ func ExpandDAG(question, primary string, slots map[string]any, replanCount int) 
 	if pb == nil {
 		pb = playbookFor("other")
 	}
-	tools := filterTools(asStringSlice(pb["tools"]), true)
+	tools := filterTools(anyx.Strings(pb["tools"]), true)
 	if len(tools) == 0 {
-		tools = filterTools(asStringSlice(pb["tools"]), false)
+		tools = filterTools(anyx.Strings(pb["tools"]), false)
 		if len(tools) == 0 {
 			tools = []string{"sc_resolve_name"}
 		}
@@ -188,7 +190,7 @@ func argsFor(tool string, slots map[string]any, question, resolveID string) map[
 		} else if slots["faction"] != nil {
 			args["faction"] = slots["faction"]
 		}
-		rank := missionRankKeyword(asString(slots["rank"]), asString(slots["rank_keyword"]), asString(slots["activity"]))
+		rank := missionRankKeyword(anyx.String(slots["rank"]), anyx.String(slots["rank_keyword"]), anyx.String(slots["activity"]))
 		if rank != "" {
 			args["rank_keyword"] = rank
 		}
@@ -197,23 +199,27 @@ func argsFor(tool string, slots map[string]any, question, resolveID string) map[
 		}
 		return args
 	case "sc_best_prices":
-		commodity := asString(slots["commodity"])
+		commodity := anyx.String(slots["commodity"])
 		if commodity == "" {
 			commodity = resolveText(slots, question)
 		}
 		if resolveID != "" {
 			commodity = "$" + resolveID + ".canonical"
 		}
+		side := anyx.String(slots["side"])
+		if strings.TrimSpace(side) == "" {
+			side = "sell"
+		}
 		args := map[string]any{
 			"commodity": commodity,
-			"side":      firstNonEmpty(asString(slots["side"]), "sell"),
+			"side":      side,
 		}
 		if slots["system"] != nil {
 			args["system"] = slots["system"]
 		}
 		return args
 	case "sc_terminal_prices":
-		terminal := asString(slots["terminal"])
+		terminal := anyx.String(slots["terminal"])
 		if terminal == "" {
 			terminal = resolveText(slots, question)
 		}
@@ -228,7 +234,7 @@ func argsFor(tool string, slots map[string]any, question, resolveID string) map[
 	case "sc_search_docs":
 		q := ""
 		for _, key := range []string{"topic", "query", "event", "activity", "goal"} {
-			if v := asString(slots[key]); v != "" {
+			if v := anyx.String(slots[key]); v != "" {
 				q = docsQuery(v, question)
 				break
 			}
@@ -249,25 +255,6 @@ func argsFor(tool string, slots map[string]any, question, resolveID string) map[
 	default:
 		return map[string]any{}
 	}
-}
-
-func asStringSlice(v any) []string {
-	arr, ok := v.([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(arr))
-	for _, x := range arr {
-		if s, ok := x.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-func asString(v any) string {
-	s, _ := v.(string)
-	return s
 }
 
 func strOr(v any, fallback string) string {
@@ -294,11 +281,4 @@ func remove(xs []string, drop string) []string {
 		}
 	}
 	return out
-}
-
-func firstNonEmpty(a, b string) string {
-	if strings.TrimSpace(a) != "" {
-		return a
-	}
-	return b
 }

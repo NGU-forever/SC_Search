@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 var uexParenSystemRE = regexp.MustCompile(`(?i)\((stanton|pyro|nyx|terra)\)`)
@@ -45,7 +47,7 @@ func inferSystemFromTerminalName(terminalName string) string {
 func pickGameVersion(groups ...[]map[string]any) string {
 	for _, g := range groups {
 		for _, item := range g {
-			if v := strAny(item["game_version"]); v != "" {
+			if v := anyx.String(item["game_version"]); v != "" {
 				return v
 			}
 		}
@@ -130,12 +132,3 @@ func findExistingShipID(conn DBTX, names ...string) (int64, bool) {
 }
 
 // ApplyUex writes terminals/commodities/prices (+ optional vehicles) without HTTP.
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}

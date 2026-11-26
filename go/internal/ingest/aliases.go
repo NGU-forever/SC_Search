@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/frankxiong/sc-search/internal/anyx"
 	"github.com/frankxiong/sc-search/internal/query"
 )
 
@@ -55,8 +56,8 @@ func ApplySeedAliases(conn DBTX, entries []seedAlias, gameVersion string) (int, 
 		var entityID int64
 		pool := []map[string]any{}
 		for _, m := range matches {
-			cn := strings.EqualFold(strAny(m["canonical_name"]), target)
-			ma := strings.EqualFold(strAny(m["matched_alias"]), target)
+			cn := strings.EqualFold(anyx.String(m["canonical_name"]), target)
+			ma := strings.EqualFold(anyx.String(m["matched_alias"]), target)
 			if cn || ma {
 				pool = append(pool, m)
 			}
@@ -66,12 +67,12 @@ func ApplySeedAliases(conn DBTX, entries []seedAlias, gameVersion string) (int, 
 		}
 		kindHits := []map[string]any{}
 		for _, m := range pool {
-			if strAny(m["kind"]) == kind {
+			if anyx.String(m["kind"]) == kind {
 				kindHits = append(kindHits, m)
 			}
 		}
 		if len(kindHits) > 0 {
-			entityID = asInt64Any(kindHits[0]["id"])
+			entityID = anyx.Int64(kindHits[0]["id"])
 		} else {
 			entityID, err = UpsertEntity(conn, kind, target, gameVersion, "", "alias-target-"+kind+"-"+target)
 			if err != nil {
@@ -115,27 +116,4 @@ func SyncAliases(conn *sql.DB, repoRoot, seedPath string) (int, error) {
 		return count, err
 	}
 	return count, nil
-}
-
-func strAny(v any) string {
-	if v == nil {
-		return ""
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
-}
-
-func asInt64Any(v any) int64 {
-	switch t := v.(type) {
-	case int64:
-		return t
-	case int:
-		return int64(t)
-	case float64:
-		return int64(t)
-	default:
-		return 0
-	}
 }

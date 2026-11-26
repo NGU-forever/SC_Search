@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"sync"
+
+	"github.com/frankxiong/sc-search/internal/anyx"
 )
 
 // Invoker runs a named MCP-style tool and returns the parsed envelope map.
@@ -259,7 +261,7 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 		if meta["stale"] == true {
 			stale = true
 			label := tool
-			if src := strAny(meta["source"]); src != "" {
+			if src := anyx.String(meta["source"]); src != "" {
 				label = src
 			}
 			if label == "" {
@@ -276,7 +278,7 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 			}
 		}
 		if gv, ok := meta["game_version"]; ok && gv != nil && gv != "" {
-			key := strAny(gv)
+			key := anyx.String(gv)
 			if _, seen := versions[key]; !seen {
 				versions[key] = struct{}{}
 				out["game_versions"] = append(out["game_versions"].([]any), gv)
@@ -291,13 +293,4 @@ func AggregateCallMeta(callResults []map[string]any) map[string]any {
 		out["as_of"] = asOf
 	}
 	return out
-}
-
-func strAny(v any) string {
-	switch t := v.(type) {
-	case string:
-		return t
-	default:
-		return ""
-	}
 }

@@ -1,5 +1,7 @@
 package ingest
 
+import "github.com/frankxiong/sc-search/internal/anyx"
+
 // scmdbApply carries the cross-phase state of one SCMDB payload apply.
 type scmdbApply struct {
 	conn        DBTX
@@ -39,7 +41,7 @@ func ApplyScmdbPayload(conn DBTX, payload map[string]any, runID int64, gameVersi
 }
 
 func (a *scmdbApply) factText(entityID int64, key string, value any) {
-	s := strAny(value)
+	s := anyx.String(value)
 	if s == "" {
 		return
 	}

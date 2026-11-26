@@ -1,0 +1,22 @@
+# Size ratchet baseline — known, documented exceptions to the size budgets.
+#
+# Format (one per line; `#` starts a comment):
+#   file <path> <lines>
+#   func <path> <name> <lines>
+#
+# Only items that still exceed a budget belong here. When a refactor makes an
+# entry smaller, lower its number (keeping a larger stale number is allowed but
+# the note printed by the ratchet should be acted on). Adding an entry requires
+# a one-line reason comment above it. File exceptions are currently none.
+
+# QueryPlan (222): action rules + entity resolution walk stay in one table until
+# the classification-maintainability split (see its doc, stage 2–3).
+func go/internal/query/plan.go QueryPlan 222
+
+# EntityFacts (151): multi-section SQL assembly and fact shaping; splitting is
+# tracked by the classification/typing work rather than this pass.
+func go/internal/query/entities.go EntityFacts 151
+
+# ApplyLocalizationMaps (133): one transactional pass over locale payload maps;
+# the phases are deliberately kept in a single loop for straight-line auditing.
+func go/internal/ingest/localization.go ApplyLocalizationMaps 133
