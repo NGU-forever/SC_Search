@@ -40,6 +40,16 @@ var (
 	blueprintCtxRE = regexp.MustCompile(`(?i)(蓝图|制造|制作|配方|材料|获取|crafting|blueprint)`)
 )
 
+type planCtx struct {
+	q           string
+	hint        string
+	entities    []map[string]any
+	resolveText string
+	searchTerm  string
+	primary     string
+	act         ActionMatch
+}
+
 // QueryPlan classifies a question into MCP/browser steps (parity with Python query_plan).
 func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) {
 	q := strings.TrimSpace(question)
@@ -48,220 +58,256 @@ func QueryPlan(db *sql.DB, question, hintEntity string) (map[string]any, error) 
 	if err != nil {
 		return nil, err
 	}
-	resolveText := mcpResolveText(hint, entities)
-	searchTerm := browserSearchTerm(entities)
 	primary := ""
 	if len(entities) > 0 {
 		primary = anyx.String(entities[0]["canonical_name"])
 	}
+	c := planCtx{
+		q:           q,
+		hint:        hint,
+		entities:    entities,
+		resolveText: mcpResolveText(hint, entities),
+		searchTerm:  browserSearchTerm(entities),
+		primary:     primary,
+		// Action priority comes from DetectAction / actionRules (not if-order alone).
+		act: DetectAction(q),
+	}
 
-	// Action priority comes from DetectAction / actionRules (not if-order alone).
-	act := DetectAction(q)
+	if out, ok := planForAction(c); ok {
+		return out, nil
+	}
+	if pricesRE.MatchString(c.q) && hasCommodityOrTerminal(c.entities) {
+		return planForPrices(c), nil
+	}
+	if out, ok := planForGuides(c); ok {
+		return out, nil
+	}
+	if out, ok := planForLiveAndDocs(c); ok {
+		return out, nil
+	}
+	return planFallbackFacts(c), nil
+}
 
-	if act.Action == ActionMining {
-		ents := filterMiningEntities(entities, q)
-		searchTerm = browserSearchTerm(ents)
-		conf := "medium"
-		if searchTerm != "" {
-			conf = "high"
+func planForAction(c planCtx) (map[string]any, bool) {
+	switch c.act.Action {
+	case ActionMining:
+		return planMining(c), true
+	case ActionLoadout:
+		return planLoadout(c), true
+	case ActionMissionMoney:
+		return planMissionMoney(c), true
+	case ActionMissionList:
+		return planMissionList(c)
+	default:
+		return nil, false
+	}
+}
+
+func planMining(c planCtx) map[string]any {
+	ents := filterMiningEntities(c.entities, c.q)
+	searchTerm := browserSearchTerm(ents)
+	conf := "medium"
+	if searchTerm != "" {
+		conf = "high"
+	}
+	steps := []map[string]any{}
+	if rt := mcpResolveText(c.hint, ents); rt != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": rt}})
+	}
+	return map[string]any{
+		"intent": "mining_calc", "path": "mcp_then_browser", "confidence": conf,
+		"entities": ents, "mcp_steps": steps, "browser": browserMining(searchTerm),
+		"stop_if": "只要矿船静态参数时不开采矿站", "reason": "采矿配装/模拟需交互站",
+		"action_rule": c.act.RuleID,
+	}
+}
+
+func planLoadout(c planCtx) map[string]any {
+	conf := "medium"
+	if c.searchTerm != "" {
+		conf = "high"
+	}
+	steps := []map[string]any{}
+	if c.resolveText != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": c.resolveText}})
+	}
+	if c.primary != "" && entityKind(c.entities, 0) == "ship" {
+		steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": c.primary}})
+	}
+	return map[string]any{
+		"intent": "loadout_calc", "path": "mcp_then_browser", "confidence": conf,
+		"entities": c.entities, "mcp_steps": steps, "browser": browserErkul(c.searchTerm),
+		"stop_if":     "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
+		"reason":      "改装先社区主流成文；确认后再开 Erkul 计算器",
+		"action_rule": c.act.RuleID,
+	}
+}
+
+func planMissionMoney(c planCtx) map[string]any {
+	steps := []map[string]any{}
+	if c.resolveText != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": c.resolveText}})
+	}
+	if faction := factionPrimary(c.entities); faction != nil {
+		steps = append(steps, map[string]any{"tool": "sc_list_missions", "args": map[string]any{"faction": anyx.String(faction["canonical_name"]), "limit": 8}})
+	}
+	if c.primary != "" {
+		steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": c.primary}})
+	}
+	return map[string]any{
+		"intent": "mission_money", "path": "mcp_only", "confidence": "high",
+		"entities": c.entities, "mcp_steps": steps, "browser": browserOff(),
+		"stop_if": "机制字段已够则不要开浏览器", "reason": "任务手续费/冷却/站点走本地 SCMDB",
+		"action_rule": c.act.RuleID,
+	}
+}
+
+func planMissionList(c planCtx) (map[string]any, bool) {
+	faction := factionPrimary(c.entities)
+	if faction == nil {
+		return nil, false
+	}
+	fname := anyx.String(faction["canonical_name"])
+	ents := []map[string]any{faction}
+	for _, e := range c.entities {
+		if asInt64(e["id"]) != asInt64(faction["id"]) {
+			ents = append(ents, e)
 		}
+	}
+	steps := []map[string]any{}
+	if c.resolveText != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": c.resolveText}})
+	}
+	steps = append(steps, map[string]any{"tool": "sc_list_missions", "args": map[string]any{"faction": fname, "limit": 8}})
+	return map[string]any{
+		"intent": "mission_list", "path": "mcp_only", "confidence": "high",
+		"entities": ents, "mcp_steps": steps, "browser": browserOff(),
+		"stop_if": "任务列表已够则不要开浏览器", "reason": "势力任务列表走本地 SCMDB",
+		"action_rule": c.act.RuleID,
+	}, true
+}
+
+func planForPrices(c planCtx) map[string]any {
+	ents := preferCommodityEntities(c.entities)
+	commodity := ""
+	if len(ents) > 0 {
+		commodity = anyx.String(ents[0]["canonical_name"])
+	}
+	if commodity == "" {
+		commodity = c.resolveText
+	}
+	side := priceSide(c.q)
+	steps := []map[string]any{}
+	rt := mcpResolveText(c.hint, ents)
+	if rt == "" {
+		rt = commodity
+	}
+	if rt != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": rt}})
+	}
+	steps = append(steps, map[string]any{"tool": "sc_best_prices", "args": map[string]any{"commodity": commodity, "side": side}})
+	return map[string]any{
+		"intent": "prices", "path": "mcp_only", "confidence": "high",
+		"entities": ents, "mcp_steps": steps, "browser": browserOff(),
+		"stop_if": "有报价则不要开浏览器", "reason": "物价走本地 UEX 快照",
+	}
+}
+
+func planForGuides(c planCtx) (map[string]any, bool) {
+	switch {
+	case clientRE.MatchString(c.q):
+		return guidePlan("client_help", "client", c.entities, c.resolveText, "客户端/报错/汉化需教程外链；本地不编造排障步骤", nil), true
+	case pledgeRE.MatchString(c.q):
+		return guidePlan("pledge_meta", "pledge", c.entities, c.resolveText, "氪金/CCU/退款名词需官方与社区指南；库无账单数据", nil), true
+	case eventRE.MatchString(c.q):
+		return guidePlan("event_guide", "event", c.entities, c.resolveText, "活动本/试飞时效强，给外链供 Agent 推理引用", nil), true
+	case shipShopRE.MatchString(c.q) || isShipBuyQuestion(c.q, c.entities):
 		steps := []map[string]any{}
-		rt := mcpResolveText(hint, ents)
-		if rt != "" {
-			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": rt}})
+		if c.primary != "" && entityKind(c.entities, 0) == "ship" {
+			steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": c.primary}})
 		}
-		return map[string]any{
-			"intent": "mining_calc", "path": "mcp_then_browser", "confidence": conf,
-			"entities": ents, "mcp_steps": steps, "browser": browserMining(searchTerm),
-			"stop_if": "只要矿船静态参数时不开采矿站", "reason": "采矿配装/模拟需交互站",
-			"action_rule": act.RuleID,
-		}, nil
+		return guidePlan("ship_shop", "ship_shop", c.entities, c.resolveText, "船店/租借购点以 Everark 等外链为准；本地可附静态参数", steps), true
+	case tradeRouteRE.MatchString(c.q):
+		return guidePlan("trade_route", "trade_route", c.entities, c.resolveText, "整条跑商航线需规划站；可辅以本地单价", nil), true
+	case earnMetaRE.MatchString(c.q) && factionPrimary(c.entities) == nil:
+		return guidePlan("earn_meta", "earn_meta", c.entities, c.resolveText, "赚钱开荒需推理组织玩法；附任务/Wiki 外链，不编造时薪",
+			[]map[string]any{{"tool": "sc_list_missions", "args": map[string]any{"limit": 5}}}), true
+	case howtoRE.MatchString(c.q):
+		return guidePlan("howto", "howto", c.entities, c.resolveText, "操作/找路教程类；本地证据+外链供 LLM 成文", nil), true
+	default:
+		return nil, false
 	}
+}
 
-	if act.Action == ActionLoadout {
-		conf := "medium"
-		if searchTerm != "" {
-			conf = "high"
-		}
-		steps := []map[string]any{}
-		if resolveText != "" {
-			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
-		}
-		if primary != "" && entityKind(entities, 0) == "ship" {
-			steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": primary}})
-		}
-		return map[string]any{
-			"intent": "loadout_calc", "path": "mcp_then_browser", "confidence": conf,
-			"entities": entities, "mcp_steps": steps, "browser": browserErkul(searchTerm),
-			"stop_if":     "若用户只要静态参数（货舱/硬点），答完 facts 即停，不开浏览器",
-			"reason":      "改装先社区主流成文；确认后再开 Erkul 计算器",
-			"action_rule": act.RuleID,
-		}, nil
-	}
-
-	if act.Action == ActionMissionMoney {
-		steps := []map[string]any{}
-		if resolveText != "" {
-			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
-		}
-		if faction := factionPrimary(entities); faction != nil {
-			steps = append(steps, map[string]any{"tool": "sc_list_missions", "args": map[string]any{"faction": anyx.String(faction["canonical_name"]), "limit": 8}})
-		}
-		if primary != "" {
-			steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": primary}})
-		}
-		return map[string]any{
-			"intent": "mission_money", "path": "mcp_only", "confidence": "high",
-			"entities": entities, "mcp_steps": steps, "browser": browserOff(),
-			"stop_if": "机制字段已够则不要开浏览器", "reason": "任务手续费/冷却/站点走本地 SCMDB",
-			"action_rule": act.RuleID,
-		}, nil
-	}
-
-	if act.Action == ActionMissionList {
-		if faction := factionPrimary(entities); faction != nil {
-			fname := anyx.String(faction["canonical_name"])
-			ents := []map[string]any{faction}
-			for _, e := range entities {
-				if asInt64(e["id"]) != asInt64(faction["id"]) {
-					ents = append(ents, e)
-				}
-			}
-			steps := []map[string]any{}
-			if resolveText != "" {
-				steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
-			}
-			steps = append(steps, map[string]any{"tool": "sc_list_missions", "args": map[string]any{"faction": fname, "limit": 8}})
-			return map[string]any{
-				"intent": "mission_list", "path": "mcp_only", "confidence": "high",
-				"entities": ents, "mcp_steps": steps, "browser": browserOff(),
-				"stop_if": "任务列表已够则不要开浏览器", "reason": "势力任务列表走本地 SCMDB",
-				"action_rule": act.RuleID,
-			}, nil
-		}
-	}
-
-	if pricesRE.MatchString(q) && hasCommodityOrTerminal(entities) {
-		ents := preferCommodityEntities(entities)
-		commodity := ""
-		if len(ents) > 0 {
-			commodity = anyx.String(ents[0]["canonical_name"])
-		}
-		if commodity == "" {
-			commodity = resolveText
-		}
-		side := priceSide(q)
-		steps := []map[string]any{}
-		rt := mcpResolveText(hint, ents)
-		if rt == "" {
-			rt = commodity
-		}
-		if rt != "" {
-			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": rt}})
-		}
-		steps = append(steps, map[string]any{"tool": "sc_best_prices", "args": map[string]any{"commodity": commodity, "side": side}})
-		return map[string]any{
-			"intent": "prices", "path": "mcp_only", "confidence": "high",
-			"entities": ents, "mcp_steps": steps, "browser": browserOff(),
-			"stop_if": "有报价则不要开浏览器", "reason": "物价走本地 UEX 快照",
-		}, nil
-	}
-
-	if clientRE.MatchString(q) {
-		return guidePlan("client_help", "client", entities, resolveText, "客户端/报错/汉化需教程外链；本地不编造排障步骤", nil), nil
-	}
-	if pledgeRE.MatchString(q) {
-		return guidePlan("pledge_meta", "pledge", entities, resolveText, "氪金/CCU/退款名词需官方与社区指南；库无账单数据", nil), nil
-	}
-	if eventRE.MatchString(q) {
-		return guidePlan("event_guide", "event", entities, resolveText, "活动本/试飞时效强，给外链供 Agent 推理引用", nil), nil
-	}
-	if shipShopRE.MatchString(q) || isShipBuyQuestion(q, entities) {
-		steps := []map[string]any{}
-		if primary != "" && entityKind(entities, 0) == "ship" {
-			steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": primary}})
-		}
-		return guidePlan("ship_shop", "ship_shop", entities, resolveText, "船店/租借购点以 Everark 等外链为准；本地可附静态参数", steps), nil
-	}
-	if tradeRouteRE.MatchString(q) {
-		return guidePlan("trade_route", "trade_route", entities, resolveText, "整条跑商航线需规划站；可辅以本地单价", nil), nil
-	}
-	if earnMetaRE.MatchString(q) && factionPrimary(entities) == nil {
-		return guidePlan("earn_meta", "earn_meta", entities, resolveText, "赚钱开荒需推理组织玩法；附任务/Wiki 外链，不编造时薪",
-			[]map[string]any{{"tool": "sc_list_missions", "args": map[string]any{"limit": 5}}}), nil
-	}
-	if howtoRE.MatchString(q) {
-		return guidePlan("howto", "howto", entities, resolveText, "操作/找路教程类；本地证据+外链供 LLM 成文", nil), nil
-	}
-
-	if liveLocalRE.MatchString(q) {
+func planForLiveAndDocs(c planCtx) (map[string]any, bool) {
+	if liveLocalRE.MatchString(c.q) {
 		return map[string]any{
 			"intent": "live_local", "path": "mcp_only", "confidence": "high",
-			"entities": entities, "mcp_steps": []map[string]any{
+			"entities": c.entities, "mcp_steps": []map[string]any{
 				{"tool": "sc_data_freshness", "args": map[string]any{}},
 			},
 			"browser": browserOff(), "stop_if": "本地 Live 对照已够则不要开浏览器",
 			"reason": "当前 Live 版本走本地 freshness / scmdb 对照",
-		}, nil
+		}, true
 	}
-	if dataSyncRE.MatchString(q) {
+	if dataSyncRE.MatchString(c.q) {
 		return map[string]any{
 			"intent": "data_sync", "path": "mcp_only", "confidence": "high",
-			"entities": entities, "mcp_steps": []map[string]any{
+			"entities": c.entities, "mcp_steps": []map[string]any{
 				{"tool": "sc_data_freshness", "args": map[string]any{}},
 			},
 			"browser": browserOff(), "stop_if": "同步时间已够则不要开浏览器",
 			"reason": "本地 ingest 同步时间",
-		}, nil
+		}, true
 	}
-
-	if liveRE.MatchString(q) {
+	if liveRE.MatchString(c.q) {
 		return map[string]any{
 			"intent": "live_web", "path": "browser_only", "confidence": "high",
-			"entities": entities, "mcp_steps": []map[string]any{},
+			"entities": c.entities, "mcp_steps": []map[string]any{},
 			"browser": map[string]any{
 				"needed": true, "site": "rsi",
 				"start_url":   "https://robertsspaceindustries.com",
-				"search_term": q, "max_actions": 8,
+				"search_term": c.q, "max_actions": 8,
 				"extract": []any{"patch version", "relevant notes"},
 				"do_not":  []any{"open /auth", "/settings"},
 			},
 			"stop_if": "", "reason": "Patch/Spectrum 需官网或论坛",
-		}, nil
+		}, true
 	}
-
-	if docsRE.MatchString(q) {
+	if docsRE.MatchString(c.q) {
 		return map[string]any{
 			"intent": "docs", "path": "mcp_only", "confidence": "medium",
-			"entities":  entities,
-			"mcp_steps": []map[string]any{{"tool": "sc_search_docs", "args": map[string]any{"query": q, "limit": 5}}},
+			"entities":  c.entities,
+			"mcp_steps": []map[string]any{{"tool": "sc_search_docs", "args": map[string]any{"query": c.q, "limit": 5}}},
 			"browser":   browserOff(), "stop_if": "库有摘要则不要开浏览器", "reason": "本地 Wiki FTS",
-		}, nil
+		}, true
 	}
+	return nil, false
+}
 
-	if len(entities) > 0 {
-		name := anyx.String(entities[0]["canonical_name"])
+func planFallbackFacts(c planCtx) map[string]any {
+	if len(c.entities) > 0 {
+		name := anyx.String(c.entities[0]["canonical_name"])
 		steps := []map[string]any{}
-		if resolveText != "" {
-			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
+		if c.resolveText != "" {
+			steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": c.resolveText}})
 		}
 		steps = append(steps, map[string]any{"tool": "sc_entity_facts", "args": map[string]any{"name_or_id": name}})
 		return map[string]any{
 			"intent": "facts", "path": "mcp_only", "confidence": "high",
-			"entities": entities, "mcp_steps": steps, "browser": browserOff(),
+			"entities": c.entities, "mcp_steps": steps, "browser": browserOff(),
 			"stop_if": "facts 已够答则不要开浏览器", "reason": "静态实体事实走本地库",
-		}, nil
+		}
 	}
-
 	steps := []map[string]any{}
-	if resolveText != "" {
-		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": resolveText}})
+	if c.resolveText != "" {
+		steps = append(steps, map[string]any{"tool": "sc_resolve_name", "args": map[string]any{"text": c.resolveText}})
 	}
 	return map[string]any{
 		"intent": "facts", "path": "mcp_only", "confidence": "low",
 		"entities": []map[string]any{}, "mcp_steps": steps, "browser": browserOff(),
 		"stop_if": "未解析到实体前不要盲目开浏览器", "reason": "无法判断意图；先 resolve",
-	}, nil
+	}
 }
 
 // MissionRepContext reports reputation/rank wording for primary selection.

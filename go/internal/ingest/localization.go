@@ -104,6 +104,140 @@ func buildNameIndex(conn DBTX) (map[string]int64, error) {
 	return index, arows.Err()
 }
 
+type locApplier struct {
+	conn        DBTX
+	runID       int64
+	gameVersion string
+	enMap       map[string]string
+	zhMap       map[string]string
+	index       map[string]int64
+	keys        map[string]struct{}
+}
+
+func (a *locApplier) remember(entityID int64, names ...string) {
+	for _, name := range names {
+		if name != "" {
+			a.index[strings.ToLower(name)] = entityID
+		}
+	}
+}
+
+func (a *locApplier) ensure(english, kind string) (int64, error) {
+	if hit, ok := a.index[strings.ToLower(english)]; ok {
+		return hit, nil
+	}
+	entityID, err := UpsertEntity(a.conn, kind, english, a.gameVersion, "", "zh-loc-"+kind+"-"+english)
+	if err != nil {
+		return 0, err
+	}
+	if err := UpsertAlias(a.conn, entityID, english, "en", locSource); err != nil {
+		return 0, err
+	}
+	a.remember(entityID, english)
+	return entityID, nil
+}
+
+func hasAnyPrefix(s string, prefixes []string) bool {
+	for _, p := range prefixes {
+		if strings.HasPrefix(s, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *locApplier) applyNamedEntries() (int, error) {
+	count := 0
+	for key := range a.keys {
+		if !hasAnyPrefix(key, namePrefixes) {
+			continue
+		}
+		en, zh := a.enMap[key], a.zhMap[key]
+		if en == "" || zh == "" || en == zh {
+			continue
+		}
+		if !isShortName(en, 64) || !isShortName(zh, 80) {
+			continue
+		}
+		entityID, err := a.ensure(en, kindForKey(key))
+		if err != nil {
+			return count, err
+		}
+		if err := UpsertAlias(a.conn, entityID, zh, "zh", locSource); err != nil {
+			return count, err
+		}
+		a.remember(entityID, zh)
+		count++
+	}
+	return count, nil
+}
+
+func (a *locApplier) applyVehicleDescriptions() (int, error) {
+	count := 0
+	for key := range a.keys {
+		if !hasAnyPrefix(key, descPrefixes) {
+			continue
+		}
+		zh := a.zhMap[key]
+		if zh == "" || len(zh) < 8 {
+			continue
+		}
+		nameKey := strings.ReplaceAll(key, "vehicle_Desc", "vehicle_name")
+		nameKey = strings.ReplaceAll(nameKey, "vehicle_desc", "vehicle_name")
+		shipEN := a.enMap[nameKey]
+		if shipEN == "" {
+			shipEN = a.enMap[strings.ReplaceAll(nameKey, "vehicle_name", "vehicle_Name")]
+		}
+		if shipEN == "" {
+			shipEN = a.enMap[nameKey+"_short"]
+			if shipEN == "" {
+				alt := strings.ReplaceAll(nameKey, "vehicle_name", "vehicle_Name") + "_short"
+				shipEN = a.enMap[alt]
+			}
+		}
+		if shipEN == "" || !isShortName(shipEN, 80) {
+			continue
+		}
+		entityID, err := a.ensure(shipEN, "ship")
+		if err != nil {
+			return count, err
+		}
+		runCopy := a.runID
+		body := zh
+		if len(body) > 4000 {
+			body = body[:4000]
+		}
+		if err := UpsertFact(a.conn, entityID, "description_zh", locSource, a.gameVersion, &runCopy, body, nil, ""); err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (a *locApplier) applyMatchedAliases() (int, error) {
+	count := 0
+	for key := range a.keys {
+		en, zh := a.enMap[key], a.zhMap[key]
+		if en == "" || zh == "" || en == zh {
+			continue
+		}
+		if !isShortName(en, 64) || !isShortName(zh, 80) {
+			continue
+		}
+		entityID, ok := a.index[strings.ToLower(en)]
+		if !ok {
+			continue
+		}
+		if err := UpsertAlias(a.conn, entityID, zh, "zh", locSource); err != nil {
+			return count, err
+		}
+		a.remember(entityID, zh)
+		count++
+	}
+	return count, nil
+}
+
 // ApplyLocalizationMaps mirrors Python apply_localization_maps.
 func ApplyLocalizationMaps(conn DBTX, enMap, zhMap map[string]string, runID int64, gameVersion string) (int, error) {
 	if gameVersion == "" {
@@ -113,130 +247,26 @@ func ApplyLocalizationMaps(conn DBTX, enMap, zhMap map[string]string, runID int6
 	if err != nil {
 		return 0, err
 	}
-	remember := func(entityID int64, names ...string) {
-		for _, name := range names {
-			if name != "" {
-				index[strings.ToLower(name)] = entityID
-			}
-		}
-	}
-	ensure := func(english, kind string) (int64, error) {
-		if hit, ok := index[strings.ToLower(english)]; ok {
-			return hit, nil
-		}
-		entityID, err := UpsertEntity(conn, kind, english, gameVersion, "", "zh-loc-"+kind+"-"+english)
-		if err != nil {
-			return 0, err
-		}
-		if err := UpsertAlias(conn, entityID, english, "en", locSource); err != nil {
-			return 0, err
-		}
-		remember(entityID, english)
-		return entityID, nil
-	}
-
 	keys := map[string]struct{}{}
 	for k := range enMap {
 		if _, ok := zhMap[k]; ok {
 			keys[k] = struct{}{}
 		}
 	}
-	count := 0
-
-	for key := range keys {
-		match := false
-		for _, p := range namePrefixes {
-			if strings.HasPrefix(key, p) {
-				match = true
-				break
-			}
-		}
-		if !match {
-			continue
-		}
-		en, zh := enMap[key], zhMap[key]
-		if en == "" || zh == "" || en == zh {
-			continue
-		}
-		if !isShortName(en, 64) || !isShortName(zh, 80) {
-			continue
-		}
-		entityID, err := ensure(en, kindForKey(key))
-		if err != nil {
-			return count, err
-		}
-		if err := UpsertAlias(conn, entityID, zh, "zh", locSource); err != nil {
-			return count, err
-		}
-		remember(entityID, zh)
-		count++
+	a := &locApplier{
+		conn: conn, runID: runID, gameVersion: gameVersion,
+		enMap: enMap, zhMap: zhMap, index: index, keys: keys,
 	}
-
-	for key := range keys {
-		descMatch := false
-		for _, p := range descPrefixes {
-			if strings.HasPrefix(key, p) {
-				descMatch = true
-				break
-			}
-		}
-		if !descMatch {
-			continue
-		}
-		zh := zhMap[key]
-		if zh == "" || len(zh) < 8 {
-			continue
-		}
-		nameKey := strings.ReplaceAll(key, "vehicle_Desc", "vehicle_name")
-		nameKey = strings.ReplaceAll(nameKey, "vehicle_desc", "vehicle_name")
-		shipEN := enMap[nameKey]
-		if shipEN == "" {
-			shipEN = enMap[strings.ReplaceAll(nameKey, "vehicle_name", "vehicle_Name")]
-		}
-		if shipEN == "" {
-			shipEN = enMap[nameKey+"_short"]
-			if shipEN == "" {
-				alt := strings.ReplaceAll(nameKey, "vehicle_name", "vehicle_Name") + "_short"
-				shipEN = enMap[alt]
-			}
-		}
-		if shipEN == "" || !isShortName(shipEN, 80) {
-			continue
-		}
-		entityID, err := ensure(shipEN, "ship")
-		if err != nil {
-			return count, err
-		}
-		runCopy := runID
-		body := zh
-		if len(body) > 4000 {
-			body = body[:4000]
-		}
-		if err := UpsertFact(conn, entityID, "description_zh", locSource, gameVersion, &runCopy, body, nil, ""); err != nil {
-			return count, err
-		}
-		count++
+	n1, err := a.applyNamedEntries()
+	if err != nil {
+		return n1, err
 	}
-
-	for key := range keys {
-		en, zh := enMap[key], zhMap[key]
-		if en == "" || zh == "" || en == zh {
-			continue
-		}
-		if !isShortName(en, 64) || !isShortName(zh, 80) {
-			continue
-		}
-		entityID, ok := index[strings.ToLower(en)]
-		if !ok {
-			continue
-		}
-		if err := UpsertAlias(conn, entityID, zh, "zh", locSource); err != nil {
-			return count, err
-		}
-		remember(entityID, zh)
-		count++
+	n2, err := a.applyVehicleDescriptions()
+	if err != nil {
+		return n1 + n2, err
 	}
-	return count, nil
+	n3, err := a.applyMatchedAliases()
+	return n1 + n2 + n3, err
 }
 
 func loadCachedINIPair(rawDir string) (map[string]string, map[string]string, error) {

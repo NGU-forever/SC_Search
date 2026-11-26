@@ -36,7 +36,38 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 		mode = "compact"
 	}
 
-	var entity map[string]any
+	entity, err := resolveEntityForFacts(db, text)
+	if err != nil || entity == nil {
+		return nil, err
+	}
+	entityID := asInt64(entity["id"])
+
+	facts, err := loadEntityFacts(db, entityID)
+	if err != nil {
+		return nil, err
+	}
+	aliases, err := loadEntityAliases(db, entityID)
+	if err != nil {
+		return nil, err
+	}
+	relations, err := loadEntityRelations(db, entityID)
+	if err != nil {
+		return nil, err
+	}
+	if mode == "compact" {
+		facts, aliases, relations = compactEntityPayload(facts, aliases, relations)
+	}
+
+	return map[string]any{
+		"entity":    entity,
+		"aliases":   aliases,
+		"facts":     facts,
+		"relations": relations,
+		"detail":    mode,
+	}, nil
+}
+
+func resolveEntityForFacts(db *sql.DB, text string) (map[string]any, error) {
 	if _, err := strconv.Atoi(text); err == nil {
 		rows, err := db.Query(`
 			SELECT id, kind, canonical_name, slug, uuid, game_version
@@ -51,41 +82,37 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 			return nil, err
 		}
 		if len(items) > 0 {
-			entity = items[0]
+			return items[0], nil
 		}
 	}
-	if entity == nil {
-		matches, err := ResolveName(db, text)
-		if err != nil {
-			return nil, err
-		}
-		if len(matches) == 0 {
-			return nil, nil
-		}
-		sort.SliceStable(matches, func(i, j int) bool {
-			pi, okI := entityPriority[anyx.String(matches[i]["kind"])]
-			if !okI {
-				pi = 99
-			}
-			pj, okJ := entityPriority[anyx.String(matches[j]["kind"])]
-			if !okJ {
-				pj = 99
-			}
-			return pi < pj
-		})
-		m0 := matches[0]
-		entity = map[string]any{
-			"id":             m0["id"],
-			"kind":           m0["kind"],
-			"canonical_name": m0["canonical_name"],
-			"slug":           m0["slug"],
-			"uuid":           m0["uuid"],
-			"game_version":   m0["game_version"],
-		}
+	matches, err := ResolveName(db, text)
+	if err != nil || len(matches) == 0 {
+		return nil, err
 	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		pi, okI := entityPriority[anyx.String(matches[i]["kind"])]
+		if !okI {
+			pi = 99
+		}
+		pj, okJ := entityPriority[anyx.String(matches[j]["kind"])]
+		if !okJ {
+			pj = 99
+		}
+		return pi < pj
+	})
+	m0 := matches[0]
+	return map[string]any{
+		"id":             m0["id"],
+		"kind":           m0["kind"],
+		"canonical_name": m0["canonical_name"],
+		"slug":           m0["slug"],
+		"uuid":           m0["uuid"],
+		"game_version":   m0["game_version"],
+	}, nil
+}
 
-	entityID := asInt64(entity["id"])
-	factRows, err := db.Query(`
+func loadEntityFacts(db *sql.DB, entityID int64) ([]map[string]any, error) {
+	rows, err := db.Query(`
 		SELECT key, value_text, value_num, unit, source, game_version
 		FROM facts WHERE entity_id = ?
 		ORDER BY key
@@ -93,26 +120,24 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 	if err != nil {
 		return nil, err
 	}
-	facts, err := scanMaps(factRows)
-	factRows.Close()
-	if err != nil {
-		return nil, err
-	}
+	defer rows.Close()
+	return scanMaps(rows)
+}
 
-	aliasRows, err := db.Query(`
+func loadEntityAliases(db *sql.DB, entityID int64) ([]map[string]any, error) {
+	rows, err := db.Query(`
 		SELECT alias, lang, source FROM aliases WHERE entity_id = ?
 		ORDER BY alias
 	`, entityID)
 	if err != nil {
 		return nil, err
 	}
-	aliases, err := scanMaps(aliasRows)
-	aliasRows.Close()
-	if err != nil {
-		return nil, err
-	}
+	defer rows.Close()
+	return scanMaps(rows)
+}
 
-	relRows, err := db.Query(`
+func loadEntityRelations(db *sql.DB, entityID int64) ([]map[string]any, error) {
+	rows, err := db.Query(`
 		SELECT rel.id, rel.rel_type, rel.qty, rel.meta_json, rel.source, rel.game_version,
 		       rel.from_id, rel.to_id,
 		       fe.canonical_name AS from_name, fe.kind AS from_kind,
@@ -126,8 +151,8 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 	if err != nil {
 		return nil, err
 	}
-	relMaps, err := scanMaps(relRows)
-	relRows.Close()
+	relMaps, err := scanMaps(rows)
+	rows.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -145,34 +170,28 @@ func EntityFacts(db *sql.DB, nameOrID string, detail string) (map[string]any, er
 		}
 		relations = append(relations, item)
 	}
+	return relations, nil
+}
 
-	if mode == "compact" {
-		filtered := make([]map[string]any, 0)
-		for _, f := range facts {
-			if _, ok := compactFactKeys[anyx.String(f["key"])]; ok {
-				filtered = append(filtered, f)
-			}
-		}
-		if len(filtered) == 0 {
-			if len(facts) > 20 {
-				facts = facts[:20]
-			}
-		} else {
-			facts = filtered
-		}
-		if len(aliases) > 8 {
-			aliases = aliases[:8]
-		}
-		if len(relations) > 20 {
-			relations = relations[:20]
+func compactEntityPayload(facts, aliases, relations []map[string]any) ([]map[string]any, []map[string]any, []map[string]any) {
+	filtered := make([]map[string]any, 0)
+	for _, f := range facts {
+		if _, ok := compactFactKeys[anyx.String(f["key"])]; ok {
+			filtered = append(filtered, f)
 		}
 	}
-
-	return map[string]any{
-		"entity":    entity,
-		"aliases":   aliases,
-		"facts":     facts,
-		"relations": relations,
-		"detail":    mode,
-	}, nil
+	if len(filtered) == 0 {
+		if len(facts) > 20 {
+			facts = facts[:20]
+		}
+	} else {
+		facts = filtered
+	}
+	if len(aliases) > 8 {
+		aliases = aliases[:8]
+	}
+	if len(relations) > 20 {
+		relations = relations[:20]
+	}
+	return facts, aliases, relations
 }
