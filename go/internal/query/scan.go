@@ -5,6 +5,11 @@ import (
 	"fmt"
 )
 
+// Queryer is satisfied by *sql.DB and *sql.Tx (read helpers reused during ingest).
+type Queryer interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
 func scanMaps(rows *sql.Rows) ([]map[string]any, error) {
 	cols, err := rows.Columns()
 	if err != nil {

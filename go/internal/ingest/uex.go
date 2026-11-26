@@ -119,7 +119,7 @@ func asIntID(v any) (int, bool) {
 	}
 }
 
-func findExistingShipID(conn *sql.DB, names ...string) (int64, bool) {
+func findExistingShipID(conn DBTX, names ...string) (int64, bool) {
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
@@ -150,7 +150,7 @@ func findExistingShipID(conn *sql.DB, names ...string) (int64, bool) {
 }
 
 // ApplyUex writes terminals/commodities/prices (+ optional vehicles) without HTTP.
-func ApplyUex(conn *sql.DB, runID int64, p UexPayload) (int, error) {
+func ApplyUex(conn DBTX, runID int64, p UexPayload) (int, error) {
 	gv := p.GameVersion
 	if gv == "" {
 		gv = pickGameVersion(p.Terminals, p.Commodities, p.Prices, p.Vehicles, p.VehiclePurchases)
@@ -163,10 +163,47 @@ func ApplyUex(conn *sql.DB, runID int64, p UexPayload) (int, error) {
 		return n, err
 	}
 	n2, err := applyUexVehiclePurchases(conn, runID, gv, p.Terminals, p.Vehicles, p.VehiclePurchases)
-	return n + n2, err
+	if err != nil {
+		return n + n2, err
+	}
+	if err := pruneUexPrices(conn, runID, gv); err != nil {
+		return n + n2, err
+	}
+	return n + n2, nil
 }
 
-func applyUexPayload(conn *sql.DB, runID int64, gameVersion string, terminals, commodities, prices []map[string]any) (int, error) {
+// pruneUexPrices makes the successful UEX run the authoritative price snapshot:
+// quotes for this source+version not written by runID are removed (upstream delisted them).
+// Skipped when the run wrote no prices at all, so an empty/partial API reply cannot wipe the table.
+// Set SC_SEARCH_UEX_PRUNE_OTHER_VERSIONS=1 to also drop uex quotes from other game versions.
+func pruneUexPrices(conn DBTX, runID int64, gameVersion string) error {
+	var written int
+	if err := conn.QueryRow(`
+		SELECT COUNT(*) FROM prices
+		WHERE source = ? AND game_version = ? AND ingest_run_id = ?
+	`, uexSource, gameVersion, runID).Scan(&written); err != nil {
+		return err
+	}
+	if written == 0 {
+		return nil
+	}
+	if _, err := conn.Exec(`
+		DELETE FROM prices
+		WHERE source = ? AND game_version = ? AND (ingest_run_id IS NULL OR ingest_run_id != ?)
+	`, uexSource, gameVersion, runID); err != nil {
+		return err
+	}
+	if os.Getenv("SC_SEARCH_UEX_PRUNE_OTHER_VERSIONS") == "1" {
+		if _, err := conn.Exec(`
+			DELETE FROM prices WHERE source = ? AND game_version != ?
+		`, uexSource, gameVersion); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyUexPayload(conn DBTX, runID int64, gameVersion string, terminals, commodities, prices []map[string]any) (int, error) {
 	terminalIDs := map[int]int64{}
 	commodityIDs := map[int]int64{}
 	count := 0
@@ -278,7 +315,7 @@ func applyUexPayload(conn *sql.DB, runID int64, gameVersion string, terminals, c
 	return count, nil
 }
 
-func applyUexVehiclePurchases(conn *sql.DB, runID int64, gameVersion string, terminals, vehicles, purchases []map[string]any) (int, error) {
+func applyUexVehiclePurchases(conn DBTX, runID int64, gameVersion string, terminals, vehicles, purchases []map[string]any) (int, error) {
 	terminalIDs := map[int]int64{}
 	vehicleIDs := map[int]int64{}
 	count := 0
@@ -483,7 +520,9 @@ func SyncUexLive(conn *sql.DB, repoRoot string) (int, error) {
 		Terminals: terminals, Commodities: commodities, Prices: prices,
 		Vehicles: vehicles, VehiclePurchases: purchases,
 	}
-	count, err := ApplyUex(conn, runID, payload)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyUex(tx, runID, payload)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
@@ -505,7 +544,9 @@ func SyncUexPayload(conn *sql.DB, payload UexPayload) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	count, err := ApplyUex(conn, runID, payload)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyUex(tx, runID, payload)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err

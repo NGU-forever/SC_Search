@@ -222,11 +222,24 @@ func AnswerQuestion(db *sql.DB, question, detailLevel, hintEntity string) (map[s
 			evidence["reasoning_hint"] = deepOrganizeHint
 			top := rows[0]
 			verSuffix := draftLiveSuffix(live, str(top["game_version"]))
+			stale := IsStaleVsLive(live, str(top["game_version"]))
+			best := "较优"
+			if stale {
+				// Stale snapshot: never present as the current Live best price.
+				verSuffix = priceStaleSuffix(live, str(top["game_version"]))
+				best = "快照中较优"
+				evidence["meta"] = map[string]any{
+					"stale":         true,
+					"stale_sources": []string{str(top["source"])},
+					"game_version":  str(top["game_version"]),
+					"as_of":         live,
+				}
+			}
 			core := ""
 			if terminalName != "" && commodityEntity == nil {
 				core = fmt.Sprintf("%s %s 报价示例：%v 约 %v aUEC%s。", terminalName, side, top["commodity"], top["price"], verSuffix)
 			} else {
-				core = fmt.Sprintf("%v %s 较优：%v 约 %v aUEC%s。", top["commodity"], side, top["terminal"], top["price"], verSuffix)
+				core = fmt.Sprintf("%v %s %s：%v 约 %v aUEC%s。", top["commodity"], side, best, top["terminal"], top["price"], verSuffix)
 			}
 			draft = "【供 Agent 深度整理】" + deepOrganizeHint + "\n" + core
 			detailAvailable = pricesRemain
@@ -551,6 +564,12 @@ func draftLiveSuffix(live, sourceVer string) string {
 		}
 	}
 	return fmt.Sprintf("（Live %s）", live)
+}
+
+// priceStaleSuffix is the mandatory wording when a price snapshot lags the Live version.
+func priceStaleSuffix(live, sourceVer string) string {
+	return fmt.Sprintf("（⚠ 价格快照版本 %s，落后 Live %s，非当前 Live 报价，仅供参考；可说「同步数据」刷新）",
+		ShortLiveLabel(sourceVer), live)
 }
 
 func slimPrices(rows []map[string]any) []map[string]any {

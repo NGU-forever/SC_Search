@@ -29,10 +29,14 @@ func Open(dbPath string) (*sql.DB, error) {
 	return conn, nil
 }
 
-// InitDB applies the embedded schema.
+// InitDB applies the embedded schema (tables + indexes; idempotent, upgrades existing DBs).
 func InitDB(conn *sql.DB) error {
 	if _, err := conn.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("init schema: %w", err)
+	}
+	// Refresh planner stats after (re)creating indexes; cheap on a ~16MB DB.
+	if _, err := conn.Exec("PRAGMA optimize"); err != nil {
+		return fmt.Errorf("pragma optimize: %w", err)
 	}
 	return nil
 }

@@ -1,7 +1,6 @@
 package query
 
 import (
-	"database/sql"
 	"sort"
 	"strings"
 )
@@ -18,7 +17,7 @@ var kindRank = map[string]int{
 	"mission":        8,
 }
 
-func ResolveName(db *sql.DB, text string) ([]map[string]any, error) {
+func ResolveName(db Queryer, text string) ([]map[string]any, error) {
 	q := strings.TrimSpace(text)
 	if q == "" {
 		return []map[string]any{}, nil

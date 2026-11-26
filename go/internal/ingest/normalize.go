@@ -10,7 +10,7 @@ func utcNow() string {
 	return time.Now().UTC().Truncate(time.Second).Format(time.RFC3339)
 }
 
-func StartRun(conn *sql.DB, source string, gameVersion string) (int64, error) {
+func StartRun(conn DBTX, source string, gameVersion string) (int64, error) {
 	res, err := conn.Exec(`
 		INSERT INTO ingest_runs (source, game_version, started_at, status)
 		VALUES (?, ?, ?, 'running')
@@ -21,7 +21,7 @@ func StartRun(conn *sql.DB, source string, gameVersion string) (int64, error) {
 	return res.LastInsertId()
 }
 
-func FinishRun(conn *sql.DB, runID int64, status string, rowCount *int, notes, gameVersion string) error {
+func FinishRun(conn DBTX, runID int64, status string, rowCount *int, notes, gameVersion string) error {
 	if gameVersion != "" {
 		_, err := conn.Exec(`
 			UPDATE ingest_runs
@@ -38,7 +38,7 @@ func FinishRun(conn *sql.DB, runID int64, status string, rowCount *int, notes, g
 	return err
 }
 
-func UpsertEntity(conn *sql.DB, kind, canonicalName, gameVersion, slug, uuid string) (int64, error) {
+func UpsertEntity(conn DBTX, kind, canonicalName, gameVersion, slug, uuid string) (int64, error) {
 	now := utcNow()
 	var id sql.NullInt64
 	if uuid != "" {
@@ -105,7 +105,7 @@ func UpsertEntity(conn *sql.DB, kind, canonicalName, gameVersion, slug, uuid str
 	return 0, fmt.Errorf("upsert entity: %w", err)
 }
 
-func UpsertAlias(conn *sql.DB, entityID int64, alias, lang, source string) error {
+func UpsertAlias(conn DBTX, entityID int64, alias, lang, source string) error {
 	_, err := conn.Exec(`
 		INSERT INTO aliases (entity_id, alias, lang, source)
 		VALUES (?, ?, ?, ?)
@@ -114,7 +114,7 @@ func UpsertAlias(conn *sql.DB, entityID int64, alias, lang, source string) error
 	return err
 }
 
-func ClearSourceFactsRelations(conn *sql.DB, source, gameVersion string) error {
+func ClearSourceFactsRelations(conn DBTX, source, gameVersion string) error {
 	if _, err := conn.Exec(`DELETE FROM facts WHERE source = ? AND game_version = ?`, source, gameVersion); err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func ClearSourceFactsRelations(conn *sql.DB, source, gameVersion string) error {
 	return err
 }
 
-func InsertRelation(conn *sql.DB, fromID, toID int64, relType, source, gameVersion string, qty *float64, metaJSON string) error {
+func InsertRelation(conn DBTX, fromID, toID int64, relType, source, gameVersion string, qty *float64, metaJSON string) error {
 	var q any
 	if qty != nil {
 		q = *qty
@@ -134,7 +134,7 @@ func InsertRelation(conn *sql.DB, fromID, toID int64, relType, source, gameVersi
 	return err
 }
 
-func ReplacePrice(conn *sql.DB, commodityID, terminalID int64, side string, price float64, source, gameVersion string, ingestRunID int64, scuAvailable *float64, reportedAt string) error {
+func ReplacePrice(conn DBTX, commodityID, terminalID int64, side string, price float64, source, gameVersion string, ingestRunID int64, scuAvailable *float64, reportedAt string) error {
 	var scu any
 	if scuAvailable != nil {
 		scu = *scuAvailable
@@ -154,7 +154,7 @@ func ReplacePrice(conn *sql.DB, commodityID, terminalID int64, side string, pric
 	return err
 }
 
-func UpsertFact(conn *sql.DB, entityID int64, key, source, gameVersion string, ingestRunID *int64, valueText string, valueNum *float64, unit string) error {
+func UpsertFact(conn DBTX, entityID int64, key, source, gameVersion string, ingestRunID *int64, valueText string, valueNum *float64, unit string) error {
 	if _, err := conn.Exec(`
 		DELETE FROM facts
 		WHERE entity_id = ? AND key = ? AND source = ? AND game_version = ?
@@ -177,7 +177,7 @@ func UpsertFact(conn *sql.DB, entityID int64, key, source, gameVersion string, i
 	return err
 }
 
-func ClearSourceDocuments(conn *sql.DB, source, gameVersion string) error {
+func ClearSourceDocuments(conn DBTX, source, gameVersion string) error {
 	_, err := conn.Exec(
 		`DELETE FROM documents WHERE source = ? AND game_version = ?`,
 		source, gameVersion,
@@ -185,7 +185,7 @@ func ClearSourceDocuments(conn *sql.DB, source, gameVersion string) error {
 	return err
 }
 
-func InsertDocument(conn *sql.DB, title, body, source, gameVersion string, ingestRunID int64, entityID *int64, url string) (int64, error) {
+func InsertDocument(conn DBTX, title, body, source, gameVersion string, ingestRunID int64, entityID *int64, url string) (int64, error) {
 	var eid any
 	if entityID != nil {
 		eid = *entityID

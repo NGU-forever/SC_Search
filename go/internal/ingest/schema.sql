@@ -39,6 +39,13 @@ CREATE INDEX IF NOT EXISTS idx_aliases_alias ON aliases(alias);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_aliases_unique
   ON aliases(entity_id, alias, lang, source);
 
+-- P0 hot-path indexes (queries use COLLATE NOCASE; binary indexes do not hit).
+CREATE INDEX IF NOT EXISTS idx_aliases_alias_nocase
+  ON aliases(alias COLLATE NOCASE, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_entities_canonical_nocase
+  ON entities(canonical_name COLLATE NOCASE, kind);
+
 CREATE TABLE IF NOT EXISTS facts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   entity_id INTEGER NOT NULL REFERENCES entities(id),
@@ -50,6 +57,9 @@ CREATE TABLE IF NOT EXISTS facts (
   game_version TEXT NOT NULL,
   ingest_run_id INTEGER REFERENCES ingest_runs(id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_facts_entity_key
+  ON facts(entity_id, key);
 
 CREATE TABLE IF NOT EXISTS prices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,6 +83,9 @@ CREATE INDEX IF NOT EXISTS idx_prices_commodity_side
 CREATE INDEX IF NOT EXISTS idx_prices_terminal
   ON prices(terminal_entity_id);
 
+CREATE INDEX IF NOT EXISTS idx_prices_best
+  ON prices(commodity_entity_id, side, price);
+
 CREATE TABLE IF NOT EXISTS relations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   from_id INTEGER NOT NULL REFERENCES entities(id),
@@ -83,6 +96,12 @@ CREATE TABLE IF NOT EXISTS relations (
   source TEXT NOT NULL,
   game_version TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_relations_from_type_to
+  ON relations(from_id, rel_type, to_id);
+
+CREATE INDEX IF NOT EXISTS idx_relations_to_type_from
+  ON relations(to_id, rel_type, from_id);
 
 CREATE TABLE IF NOT EXISTS documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

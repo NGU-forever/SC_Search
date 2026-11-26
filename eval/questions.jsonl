@@ -1,13 +1,13 @@
 {"question":"Carrack 载货量和厂家？","expected_primary":"ship_stats","must_contain":["456","Anvil"],"must_not_browse":true}
 {"question":"卡拉克货舱多大","expected_primary":"ship_stats","must_contain":["456"],"must_not_browse":true}
-{"question":"黄金哪里卖最贵","expected_primary":"trade","must_not_browse":true}
+{"question":"黄金哪里卖最贵","expected_primary":"trade","must_not_browse":true,"must_not_contain":["当前最佳","现行市价"]}
 {"question":"流星改装方案","expected_primary":"loadout","must_wait_confirm":true}
 {"question":"RSI Meteor loadout","expected_primary":"loadout","must_wait_confirm":true}
 {"question":"本地数据是什么时候同步的？","expected_primary":"other","must_not_browse":true}
 {"question":"Bit Zeros ship heist 手续费和冷却","expected_primary":"mission_money","must_contain":["13500","45","分钟"],"must_have_fact_labels":["手续费","冷却"],"must_not_contain":["请改用 sc_route"]}
 {"question":"红风 Junior 能接什么任务","expected_primary":"mission_rep","must_not_browse":true}
 {"question":"大白鲨是哪艘船","expected_primary":"ship_stats","must_not_browse":true}
-{"question":"Quantanium 哪里买便宜","expected_primary":"trade","must_not_browse":true}
+{"question":"Quantanium 哪里买便宜","expected_primary":"trade","must_not_browse":true,"must_not_contain":["当前最佳","现行市价"]}
 {"question":"怎么采矿配激光","expected_primary":"mining","must_wait_confirm":true}
 {"question":"萌新怎么赚钱开荒","expected_primary":"earn_meta","must_not_browse":false}
 {"question":"汉化进不去游戏怎么办","expected_primary":"client_help","must_wait_confirm":true}

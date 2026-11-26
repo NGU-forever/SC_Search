@@ -158,3 +158,9 @@ func AttachFreshness(db *sql.DB, meta map[string]any) map[string]any {
 	out["stale"] = rowVer != "" && live != "" && rowVer != live
 	return out
 }
+
+// IsStaleVsLive is true when sourceVer is a comparable game version that differs from live.
+func IsStaleVsLive(live, sourceVer string) bool {
+	v := ShortLiveLabel(sourceVer)
+	return live != "" && IsComparableGameVersion(v) && v != live
+}

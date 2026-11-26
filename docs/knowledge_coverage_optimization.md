@@ -5,6 +5,7 @@
 优先级：P2（第三阶段）  
 范围：本地知识库的数据域、来源治理、同步流程、检索与覆盖评测  
 前置阶段：[answer_quality_optimization.md](answer_quality_optimization.md)、[classification_maintainability_optimization.md](classification_maintainability_optimization.md)  
+库完整性前置：[knowledge_db_p0_optimization.md](knowledge_db_p0_optimization.md)（索引 / 同步事务 / UEX 快照与 stale）  
 需求依据：[community_question_catalog_zh.md](community_question_catalog_zh.md)
 
 ## 1. 背景

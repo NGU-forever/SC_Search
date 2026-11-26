@@ -5,7 +5,8 @@
 优先级：P0（第一阶段）  
 范围：Go MCP 查询结果的证据投影、结构化成文与回答质量评测  
 前置设计：[state_machine_orchestration_design.md](state_machine_orchestration_design.md)  
-后续阶段：[classification_maintainability_optimization.md](classification_maintainability_optimization.md)、[knowledge_coverage_optimization.md](knowledge_coverage_optimization.md)
+后续阶段：[classification_maintainability_optimization.md](classification_maintainability_optimization.md)、[knowledge_coverage_optimization.md](knowledge_coverage_optimization.md)  
+并行库完整性：[knowledge_db_p0_optimization.md](knowledge_db_p0_optimization.md)
 
 ## 1. 背景
 

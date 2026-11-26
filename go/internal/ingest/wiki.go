@@ -57,17 +57,22 @@ func SyncWikiDocuments(conn *sql.DB, documents []WikiDoc) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if err := ClearSourceDocuments(conn, wikiSource, wikiGameVersion); err != nil {
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		if err := ClearSourceDocuments(tx, wikiSource, wikiGameVersion); err != nil {
+			return 0, err
+		}
+		n := 0
+		for _, doc := range documents {
+			if _, err := InsertDocument(tx, doc.Title, doc.Body, wikiSource, wikiGameVersion, runID, doc.EntityID, doc.URL); err != nil {
+				return n, err
+			}
+			n++
+		}
+		return n, nil
+	})
+	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
-	}
-	count := 0
-	for _, doc := range documents {
-		if _, err := InsertDocument(conn, doc.Title, doc.Body, wikiSource, wikiGameVersion, runID, doc.EntityID, doc.URL); err != nil {
-			_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
-			return count, err
-		}
-		count++
 	}
 	rc := count
 	if err := FinishRun(conn, runID, "ok", &rc, "", wikiGameVersion); err != nil {
@@ -140,18 +145,23 @@ func SyncWikiLive(conn *sql.DB, shipNames []string, client *http.Client, delay t
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
 	}
-	if err := ClearSourceDocuments(conn, wikiSource, wikiGameVersion); err != nil {
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		if err := ClearSourceDocuments(tx, wikiSource, wikiGameVersion); err != nil {
+			return 0, err
+		}
+		n := 0
+		for _, doc := range docs {
+			eid := nameToEntity[doc.Title]
+			if _, err := InsertDocument(tx, doc.Title, doc.Body, wikiSource, wikiGameVersion, runID, eid, doc.URL); err != nil {
+				return n, err
+			}
+			n++
+		}
+		return n, nil
+	})
+	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
-	}
-	count := 0
-	for _, doc := range docs {
-		eid := nameToEntity[doc.Title]
-		if _, err := InsertDocument(conn, doc.Title, doc.Body, wikiSource, wikiGameVersion, runID, eid, doc.URL); err != nil {
-			_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
-			return count, err
-		}
-		count++
 	}
 	rc := count
 	if err := FinishRun(conn, runID, "ok", &rc, "", wikiGameVersion); err != nil {

@@ -216,7 +216,7 @@ func asStringMap(v any) map[string]any {
 }
 
 // ApplyScmdbPayload mirrors Python apply_scmdb_payload.
-func ApplyScmdbPayload(conn *sql.DB, payload map[string]any, runID int64, gameVersion string) (int, error) {
+func ApplyScmdbPayload(conn DBTX, payload map[string]any, runID int64, gameVersion string) (int, error) {
 	if err := ClearSourceFactsRelations(conn, scmdbSource, gameVersion); err != nil {
 		return 0, err
 	}
@@ -591,7 +591,9 @@ func SyncScmdbPayload(conn *sql.DB, payload map[string]any) (int, error) {
 		return 0, err
 	}
 	gv := firstNonEmpty(strAny(payload["version"]), "unknown")
-	count, err := ApplyScmdbPayload(conn, payload, runID, gv)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyScmdbPayload(tx, payload, runID, gv)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
@@ -632,7 +634,9 @@ func SyncScmdbLive(conn *sql.DB, repoRoot, channel, version string) (int, error)
 		_ = os.WriteFile(filepath.Join(rawDir, strAny(selected["file"])), b, 0o644)
 	}
 	gv := firstNonEmpty(strAny(payload["version"]), strAny(selected["version"]))
-	count, err := ApplyScmdbPayload(conn, payload, runID, gv)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyScmdbPayload(tx, payload, runID, gv)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err

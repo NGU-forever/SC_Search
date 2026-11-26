@@ -29,7 +29,7 @@ func LoadSeedAliases(path string) ([]seedAlias, error) {
 	return entries, nil
 }
 
-func ApplySeedAliases(conn *sql.DB, entries []seedAlias, gameVersion string) (int, error) {
+func ApplySeedAliases(conn DBTX, entries []seedAlias, gameVersion string) (int, error) {
 	if gameVersion == "" {
 		gameVersion = "aliases"
 	}
@@ -103,7 +103,9 @@ func SyncAliases(conn *sql.DB, repoRoot, seedPath string) (int, error) {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
 	}
-	count, err := ApplySeedAliases(conn, entries, "aliases")
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplySeedAliases(tx, entries, "aliases")
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err

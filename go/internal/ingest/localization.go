@@ -72,7 +72,7 @@ func kindForKey(key string) string {
 	return "item"
 }
 
-func buildNameIndex(conn *sql.DB) (map[string]int64, error) {
+func buildNameIndex(conn DBTX) (map[string]int64, error) {
 	index := map[string]int64{}
 	rows, err := conn.Query(`SELECT id, canonical_name FROM entities`)
 	if err != nil {
@@ -105,7 +105,7 @@ func buildNameIndex(conn *sql.DB) (map[string]int64, error) {
 }
 
 // ApplyLocalizationMaps mirrors Python apply_localization_maps.
-func ApplyLocalizationMaps(conn *sql.DB, enMap, zhMap map[string]string, runID int64, gameVersion string) (int, error) {
+func ApplyLocalizationMaps(conn DBTX, enMap, zhMap map[string]string, runID int64, gameVersion string) (int, error) {
 	if gameVersion == "" {
 		gameVersion = locGameVersion
 	}
@@ -304,7 +304,9 @@ func SyncLocalization(conn *sql.DB, repoRoot string, enMap, zhMap map[string]str
 			return 0, err
 		}
 	}
-	count, err := ApplyLocalizationMaps(conn, enMap, zhMap, runID, locGameVersion)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyLocalizationMaps(tx, enMap, zhMap, runID, locGameVersion)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err

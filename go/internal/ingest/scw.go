@@ -43,7 +43,7 @@ func localized(value any, lang string) string {
 }
 
 // ApplyScwVehicles mirrors Python apply_scw_vehicles.
-func ApplyScwVehicles(conn *sql.DB, vehicles []map[string]any, runID int64, gameVersion string) (int, error) {
+func ApplyScwVehicles(conn DBTX, vehicles []map[string]any, runID int64, gameVersion string) (int, error) {
 	if gameVersion == "" {
 		gameVersion = scwAPIGameVersion
 	}
@@ -134,7 +134,7 @@ func ApplyScwVehicles(conn *sql.DB, vehicles []map[string]any, runID int64, game
 	return count, nil
 }
 
-func findBlueprintID(conn *sql.DB, apiUUID, outputName string) (int64, bool) {
+func findBlueprintID(conn DBTX, apiUUID, outputName string) (int64, bool) {
 	var id int64
 	for _, uuid := range []string{"scmdb-bp-" + apiUUID, "scw-bp-" + apiUUID} {
 		err := conn.QueryRow(`
@@ -155,7 +155,7 @@ func findBlueprintID(conn *sql.DB, apiUUID, outputName string) (int64, bool) {
 }
 
 // ApplyScwBlueprints mirrors Python apply_scw_blueprints.
-func ApplyScwBlueprints(conn *sql.DB, blueprints []map[string]any, runID int64) (int, error) {
+func ApplyScwBlueprints(conn DBTX, blueprints []map[string]any, runID int64) (int, error) {
 	if _, err := conn.Exec(`DELETE FROM facts WHERE source = ?`, scwBPSource); err != nil {
 		return 0, err
 	}
@@ -299,7 +299,9 @@ func SyncScwVehicles(conn *sql.DB, vehicles []map[string]any) (int, error) {
 			return 0, fetchErr
 		}
 	}
-	count, err := ApplyScwVehicles(conn, vehicles, runID, scwAPIGameVersion)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyScwVehicles(tx, vehicles, runID, scwAPIGameVersion)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
@@ -325,7 +327,9 @@ func SyncScwBlueprints(conn *sql.DB, rows []map[string]any) (int, error) {
 			return 0, fetchErr
 		}
 	}
-	count, err := ApplyScwBlueprints(conn, rows, runID)
+	count, err := applyInTx(conn, func(tx *sql.Tx) (int, error) {
+		return ApplyScwBlueprints(tx, rows, runID)
+	})
 	if err != nil {
 		_ = FinishRun(conn, runID, "failed", nil, err.Error(), "")
 		return 0, err
