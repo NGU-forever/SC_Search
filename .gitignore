@@ -28,3 +28,7 @@ TIPS.md
 GEMINI.md
 docs/superpowers/
 
+# Dev docs (design/logs/reviews) stay local; only player-facing templates are published
+docs/*
+!docs/answer_templates.md
+
