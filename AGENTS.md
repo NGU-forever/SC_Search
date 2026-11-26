@@ -5,19 +5,24 @@
 ## 事实问答（MCP 已可用时）
 
 ```text
-事实题默认调用 sc_ask(question=用户原话)。
-使用 answer_draft / answer_blocks 成文。
+事实题默认先调 sc_ask(question=用户原话)。
+跨领域问题（如刷任务+卖货/路线/避坑）可补调关联工具（如 sc_best_prices）并顺手查阅 TIPS.md，拼齐证据再成文。
+以本地证据为事实锚点，结合 SC 机制与用户上下文展开成可执行的玩家方案（勿机械复读 answer_draft）。
 browser.wait_confirm=true 时先征得用户确认。
-细粒度 sc_route / sc_worker_run / sc_answer 仅调试或显式覆盖。
 ```
+
+成文原则（事实严、方案放开）：
+
+- **硬事实严格守库**：数值、价格、手续费、冷却、店名、材料、版本只能来自本地证据；未收录或单位有争议就诚实说明，`stale=true` 标注快照版本但不喧宾夺主，**绝不编造具体数字**。
+- **方案与推导充分展开**：推荐结构——**一行粗体结论先行** → 关键数据/机制 → 基于证据的算账对比、路线与取舍 → 实操避坑（优先引用 [TIPS.md](TIPS.md)）→ 可选下一步细化；7 类场景模板见 [`docs/answer_templates.md`](docs/answer_templates.md)。即使库未精确命中（`no_match` / `partial`），也先说明缺失字段，再给通用 SC 机制思路与下一步（标明「通用思路，具体数值以当前 Live 为准」），不要只丢一句「未收录」就收工。
 
 硬约束：
 
 - 事实优先本地 MCP **`sc-search`** / **`sc_ask`**；禁止先空搜 / 先开 Erkul 再查库。
 - 外搜 query 必须含 `星际公民` / `Star Citizen` / `SC`。
 - 用户分享的站点立即追加到 [SOURCES.md](SOURCES.md)。
-- 库无字段不编造；`leave_open` 交互站摘要后把页面留给用户。
-- **改装**：社区优先 [Erkul Browse](https://erkul.games/browse)；Reddit 可补充但须**最新**帖（对照当前 Live，旧版方案勿当现行）；先成文/摘要，再问是否打开 Browse 或计算器。
+- `leave_open` 交互站摘要后把页面留给用户。
+- **改装**：社区优先 [Erkul Browse](https://erkul.games/browse)；Reddit 可补充但须**最新**帖（对照当前 Live，旧版方案勿当现行）；先基于本地船参 + 通用配装思路成文，再问是否打开 Browse 或计算器。
 
 开发说明（**非运行时真相源**）：[ORCHESTRATION.md](ORCHESTRATION.md)、[`docs/state_machine_orchestration_design.md`](docs/state_machine_orchestration_design.md)。机器可读剧本：[`go/internal/router/intent_tools.json`](go/internal/router/intent_tools.json)。
 
