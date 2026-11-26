@@ -31,4 +31,5 @@ docs/superpowers/
 # Dev docs (design/logs/reviews) stay local; only player-facing templates are published
 docs/*
 !docs/answer_templates.md
+!docs/state_machine_orchestration_design.md
 
