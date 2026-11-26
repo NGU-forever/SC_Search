@@ -5,7 +5,8 @@
 优先级：P1（第二阶段）  
 范围：QueryPlan 动作分类、Primary 映射、计划构建和 Worker 内部类型边界  
 前置阶段：[answer_quality_optimization.md](answer_quality_optimization.md)  
-后续阶段：[knowledge_coverage_optimization.md](knowledge_coverage_optimization.md)
+后续阶段：[knowledge_coverage_optimization.md](knowledge_coverage_optimization.md)  
+体积重构配套：[code_size_refactoring.md](code_size_refactoring.md)（`answer*.go` / `present_missions.go` / `mcp` / `ingest` 的拆分；`plan.go` 仅在本文推进）
 
 ## 1. 背景
 
